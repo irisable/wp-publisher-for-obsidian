@@ -1,4 +1,4 @@
-name: Release Obsidian plugin
+name: Release WP Publisher for Obsidian
 
 on:
   push:
@@ -6,23 +6,24 @@ on:
       - "*"
 
 env:
-  PLUGIN_NAME: obsidian-wordpress
+  PLUGIN_NAME: wp-publisher-for-obsidian
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Use Node.js
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@v4
         with:
-          node-version: "14.x"
+          node-version: "20.x"
+          cache: npm
 
       - name: Build
         id: build
         run: |
-          npm install
+          npm ci
           npm run build
           mkdir ${{ env.PLUGIN_NAME }}
           cp main.js manifest.json styles.css ${{ env.PLUGIN_NAME }}

@@ -1,8 +1,10 @@
-# obsidian-wordpress
+# WP Publisher for Obsidian
+
+Forked from the original `obsidian-wordpress` project and evolving as a separately maintained Obsidian plugin for publishing notes to WordPress.
 
 [<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="BuyMeACoffee" width="100">](https://www.buymeacoffee.com/devbean)
 
-This plugin makes you publish Obsidian documents to WordPress.
+This plugin publishes Obsidian notes to WordPress.
 
 There are some introduction videos you can watch:
 * [YouTube (Chinese) by 简睿学堂-emisjerry](https://youtu.be/7YECfr_W1WM)
@@ -48,4 +50,4 @@ Traditionally, it is done by installing plugins. WordPress 5.6 was introduced
 application passwords to do similar things. So if you are OK with WordPress 5.6,
 application passwords is preferred as no plugin in needed.
 
-Read [this page](https://devbean.github.io/obsidian-wordpress) for more information.
+Read [the documentation](./docs/index.md) for more information.

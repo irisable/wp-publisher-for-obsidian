@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## Unreleased
+
+### Changed
+
+* Fork renamed from `obsidian-wordpress` to `wp-publisher-for-obsidian`.
+* Plugin display name updated to `WP Publisher for Obsidian`.
+* Release workflow and local repository metadata updated for the renamed project.
+
+### Fixed
+
+* Restored build compatibility with current dependencies, including `markdown-it` 14 type imports.
+* Fixed WordPress.com OAuth token event typing so the project builds cleanly again.
+
+Historical entries below are preserved from the upstream `devbean/obsidian-wordpress` project.
+
 ## [0.18.0](https://github.com/devbean/obsidian-wordpress/compare/0.17.0...0.18.0) (2023-12-20)
 
 

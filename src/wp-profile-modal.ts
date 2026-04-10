@@ -3,7 +3,7 @@ import WordpressPlugin from './main';
 import { WpProfile } from './wp-profile';
 import { EventType, WP_OAUTH2_REDIRECT_URI } from './consts';
 import { WordPressClientReturnCode } from './wp-client';
-import { generateCodeVerifier, OAuth2Client } from './oauth2-client';
+import { generateCodeVerifier, OAuth2Client, WordPressOAuth2Token } from './oauth2-client';
 import { AppState } from './app-state';
 import { isValidUrl, showError } from './utils';
 import { ApiType } from './plugin-settings';
@@ -62,7 +62,8 @@ class WpProfileModal extends AbstractModal {
     super(plugin);
 
     this.profileData = Object.assign({}, profile);
-    this.tokenGotRef = AppState.events.on(EventType.OAUTH2_TOKEN_GOT, async token => {
+    this.tokenGotRef = AppState.events.on(EventType.OAUTH2_TOKEN_GOT, async (...data: unknown[]) => {
+      const token = data[0] as WordPressOAuth2Token | undefined;
       this.profileData.wpComOAuth2Token = token;
       if (atIndex >= 0) {
         // if token is undefined, just remove it

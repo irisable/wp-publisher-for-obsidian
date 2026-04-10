@@ -30,7 +30,7 @@ export default class WordpressPlugin extends Plugin {
   private ribbonWpIcon: HTMLElement | null = null;
 
   async onload() {
-    console.log('loading obsidian-wordpress plugin');
+    console.log('loading wp-publisher-for-obsidian plugin');
 
     await this.loadSettings();
     // lang should be load early, but after settings
@@ -117,7 +117,7 @@ export default class WordpressPlugin extends Plugin {
   }
 
   updateRibbonIcon(): void {
-    const ribbonIconTitle = this.#i18n?.t('ribbon_iconTitle') ?? 'WordPress';
+    const ribbonIconTitle = this.#i18n?.t('ribbon_iconTitle') ?? 'Publish to WordPress';
     if (this.#settings?.showRibbonIcon) {
       if (!this.ribbonWpIcon) {
         this.ribbonWpIcon = this.addRibbonIcon('wp-logo', ribbonIconTitle, () => {

@@ -1,20 +1,20 @@
-## Obsidian WordPress Plugin
+## WP Publisher for Obsidian
 
-This an obsidian plugin for publishing documents to WordPress CMS.
+This is an Obsidian plugin for publishing notes to WordPress CMS.
 
 ## How to install
 
 The plugin could be installed in `Community plugins`
-by searching `wordpress` as keyword.
+by searching `wp publisher` as keyword.
 
-![Installing](/obsidian-wordpress/assets/images/01GX5KHAK2BSM1CQKT19D6B2AX.png)
+![Installing](assets/images/01GX5KHAK2BSM1CQKT19D6B2AX.png)
 
 ## How to use
 
 Before publishing, necessary WordPress settings should be done
 in `WordPress` tab of Settings.
 
-![Settings](/obsidian-wordpress/assets/images/01GX5KHAK2S10XJRZE6CMBSGJB.png)
+![Settings](assets/images/01GX5KHAK2S10XJRZE6CMBSGJB.png)
 
 You can find settings as following:
 
@@ -39,11 +39,11 @@ Let's say a WordPress server could be access by https://www.mywp.com .
 
 While WordPress profiles could be managed in another modal.
 
-![Profiles](/obsidian-wordpress/assets/images/01GX5KHAK2G1CQQKKY37RA4KMY.png)
+![Profiles](assets/images/01GX5KHAK2G1CQQKKY37RA4KMY.png)
 
 Creates or edits a profile needs such information:
 
-![Profile](/obsidian-wordpress/assets/images/01GX5KHAK22NWQ6CPWEBR1GG11.png)
+![Profile](assets/images/01GX5KHAK22NWQ6CPWEBR1GG11.png)
 
 Some need be explained.
 
@@ -70,15 +70,15 @@ Some need be explained.
 
 In the plugin settings page, select `BASIC AUTHENTICATION`.
 
-![miniOrange](/obsidian-wordpress/assets/images/wp-miniOrange-1.png)
+![miniOrange](assets/images/wp-miniOrange-1.png)
 
 In the next page, select `Username & Password with Base64 Encoding` then `Next`.
 
-![miniOrange](/obsidian-wordpress/assets/images/wp-miniOrange-2.png)
+![miniOrange](assets/images/wp-miniOrange-2.png)
 
 Finally, click `Finish`.
 
-![miniOrange](/obsidian-wordpress/assets/images/wp-miniOrange-3.png)
+![miniOrange](assets/images/wp-miniOrange-3.png)
 
 ## How to config application passwords
 
@@ -86,15 +86,15 @@ Application passwords was introduced in WordPress 5.6.
 
 You need to login WordPress and navigate to 'Profile' page.
 
-![applicationPasswords](/obsidian-wordpress/assets/images/wp-app-pwd-1.png)
+![applicationPasswords](assets/images/wp-app-pwd-1.png)
 
 You could use any application name you want, then click 'Add New Application Password' button.
 
-![applicationPasswords](/obsidian-wordpress/assets/images/wp-app-pwd-2.png)
+![applicationPasswords](assets/images/wp-app-pwd-2.png)
 
 Here you need to save generated password as it only shows once. Spaces in the password will be ignored by WordPress automatically.
 
-Then you could use your login username and the application password in Obsidian WordPress plugin.
+Then you could use your login username and the application password in WP Publisher for Obsidian.
 
 ## How to use with WordPress.com
 

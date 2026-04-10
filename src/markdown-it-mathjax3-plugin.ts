@@ -1,10 +1,10 @@
 import MarkdownIt from 'markdown-it';
-import StateInline from 'markdown-it/lib/rules_inline/state_inline';
-import StateBlock from 'markdown-it/lib/rules_block/state_block';
+import StateInline from 'markdown-it/lib/rules_inline/state_inline.mjs';
+import StateBlock from 'markdown-it/lib/rules_block/state_block.mjs';
 import { TeX } from 'mathjax-full/js/input/tex';
 import { AllPackages } from 'mathjax-full/js/input/tex/AllPackages';
 import { SVG } from 'mathjax-full/js/output/svg';
-import Token from 'markdown-it/lib/token';
+import Token from 'markdown-it/lib/token.mjs';
 import { liteAdaptor } from 'mathjax-full/js/adaptors/liteAdaptor';
 import { RegisterHTMLHandler } from 'mathjax-full/js/handlers/html';
 import { AssistiveMmlHandler } from 'mathjax-full/js/a11y/assistive-mml';
