@@ -1,6 +1,6 @@
 # WP Publisher
 
-[English](README.md) | **简体中文**
+[English](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/README.md) | **简体中文**
 
 将 Obsidian 笔记发布到 WordPress，并通过明确触发的同步流程保持两端一致，
 同时让 Markdown、Front Matter、媒体文件和 WordPress 原生编辑始终处于你的掌控之中。
@@ -11,9 +11,8 @@
 Gutenberg 输出、媒体去重、发布预览、多站点发布，以及经过审阅的
 WordPress 到 Obsidian 同步。
 
-> **发布状态：** P0-P3 功能集已经完成，并通过本地测试和分阶段真实站点测试。
-> 项目目前正在准备此分支的首个公开版本。Application Password REST 与
-> XML-RPC 仍作为相互独立的最终兼容性检查项。
+> **发布状态：** WP Publisher 已进入 Obsidian 社区插件目录。P0-P3
+> 功能集已经通过本地测试、空白 Vault 测试和真实站点测试。
 
 ## 主要功能
 
@@ -31,14 +30,23 @@ WordPress 到 Obsidian 同步。
 - 保留无关 Front Matter 属性，并以可移植的分类 slug 存储分类。
 
 完整实现地图和验收记录请参阅
-[`docs/feature-map.md`](docs/feature-map.md)。
+[`docs/feature-map.md`](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/docs/feature-map.md)。
 
 ## 安装
 
-### 预发布或手动安装
+### 从 Obsidian 安装
 
-1. 从同一个 GitHub Release 下载 `main.js`、`manifest.json` 和
-   `styles.css`。
+1. 打开 **设置 > 第三方插件**。
+2. 选择 **浏览**，搜索 **WP Publisher**。
+3. 选择 **安装**，然后启用插件。
+
+也可以打开
+[WP Publisher 社区插件页面](https://community.obsidian.md/plugins/wp-publisher)。
+
+### 手动安装
+
+1. 从同一个 [GitHub Release](https://github.com/irisable/wp-publisher-for-obsidian/releases)
+   下载 `main.js`、`manifest.json` 和 `styles.css`。
 2. 将三个文件放入 `<Vault>/.obsidian/plugins/` 下的同一个文件夹。
 3. 重新加载 Obsidian，打开 **设置 > 第三方插件**，启用
    **WP Publisher**。
@@ -168,7 +176,7 @@ description: Media-library description
 
 当自托管 WordPress 需要写入受保护的 Rank Math 字段、Secondary Title，
 或通过 XML-RPC 更新附件元数据时，请安装
-[`WP Publisher Companion`](wordpress-companion/README.md)。
+[`WP Publisher Companion`](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/wordpress-companion/README.md)。
 不安装 Companion 仍可正常发布普通文章；不受支持的控制项会明确显示为不可用，
 而不是静默失败。
 
@@ -197,13 +205,17 @@ npm run version:set -- 1.2.3  # 同步发布版本文件
 npm run dev            # 为本地 Obsidian 测试启动监听构建
 ```
 
-版本说明请参阅 [`CHANGELOG.md`](CHANGELOG.md)，标准功能地图请参阅
-[`docs/feature-map.md`](docs/feature-map.md)。发布维护者还应完成
-[`docs/release-checklist.md`](docs/release-checklist.md)。
+版本说明请参阅
+[`CHANGELOG.md`](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/CHANGELOG.md)，
+标准功能地图请参阅
+[`docs/feature-map.md`](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/docs/feature-map.md)。
+发布维护者还应完成
+[`docs/release-checklist.md`](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/docs/release-checklist.md)。
 带标签的构建会被打包为 GitHub Draft Release，以便在公开发布前检查附件。
 
 ## 许可证与致谢
 
-本项目采用 [Apache License 2.0](LICENSE)。
+本项目采用
+[Apache License 2.0](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/LICENSE)。
 历史上游变更记录和作者信息继续保留，以致谢原始
 `devbean/obsidian-wordpress` 项目。

@@ -1,6 +1,6 @@
 # WP Publisher
 
-**English** | [简体中文](README.zh-CN.md)
+**English** | [简体中文](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/README.zh-CN.md)
 
 Publish and explicitly synchronize Obsidian notes with WordPress while keeping
 Markdown, front matter, media, and WordPress-native editing under your control.
@@ -11,10 +11,9 @@ It has expanded from one-way publishing into a guarded editorial workflow with
 Gutenberg output, media deduplication, preview, multi-site publishing, and
 reviewed WordPress-to-Obsidian synchronization.
 
-> **Release status:** The P0-P3 feature set is complete and has passed local and
-> staged real-site testing. The project is currently preparing its first public
-> fork release. Application Password REST and XML-RPC remain separate final
-> compatibility gates.
+> **Release status:** WP Publisher is available from Obsidian's Community
+> Plugins directory. The P0-P3 feature set has passed local, clean-Vault, and
+> real-site testing.
 
 ## Highlights
 
@@ -34,14 +33,23 @@ reviewed WordPress-to-Obsidian synchronization.
 - Preserve unrelated front matter and keep category slugs portable.
 
 The complete implementation map and acceptance history are in
-[`docs/feature-map.md`](docs/feature-map.md).
+[`docs/feature-map.md`](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/docs/feature-map.md).
 
 ## Installation
 
-### Pre-release or manual installation
+### Install From Obsidian
+
+1. Open **Settings > Community plugins**.
+2. Select **Browse** and search for **WP Publisher**.
+3. Select **Install**, then **Enable**.
+
+You can also open the
+[WP Publisher community directory page](https://community.obsidian.md/plugins/wp-publisher).
+
+### Manual Installation
 
 1. Download `main.js`, `manifest.json`, and `styles.css` from the same GitHub
-   release.
+   [release](https://github.com/irisable/wp-publisher-for-obsidian/releases).
 2. Place all three files in one folder under
    `<Vault>/.obsidian/plugins/`.
 3. Reload Obsidian, open **Settings > Community plugins**, and enable
@@ -174,7 +182,7 @@ propagation, silent conflict selection, batch pull, or binary media merge.
 
 ## Optional WordPress Companion
 
-Install [`WP Publisher Companion`](wordpress-companion/README.md) on
+Install [`WP Publisher Companion`](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/wordpress-companion/README.md) on
 self-hosted WordPress when you need protected Rank Math fields, Secondary Title,
 or XML-RPC attachment metadata. Ordinary post publishing continues without it;
 unsupported controls are shown as unavailable rather than silently failing.
@@ -207,15 +215,15 @@ npm run version:set -- 1.2.3  # synchronize release version files
 npm run dev            # watch build for local Obsidian testing
 ```
 
-See [`CHANGELOG.md`](CHANGELOG.md) for release notes and
-[`docs/feature-map.md`](docs/feature-map.md) for the canonical feature map.
+See [`CHANGELOG.md`](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/CHANGELOG.md) for release notes and
+[`docs/feature-map.md`](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/docs/feature-map.md) for the canonical feature map.
 Release maintainers should complete the
-[`docs/release-checklist.md`](docs/release-checklist.md).
+[`docs/release-checklist.md`](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/docs/release-checklist.md).
 Tagged builds are packaged as draft GitHub releases so the assets can be
 inspected before publication.
 
 ## License And Credits
 
-Licensed under the [Apache License 2.0](LICENSE). Historical upstream changelog
+Licensed under the [Apache License 2.0](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/LICENSE). Historical upstream changelog
 entries and authorship are retained in recognition of the original
 `devbean/obsidian-wordpress` project.
