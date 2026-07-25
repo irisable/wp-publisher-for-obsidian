@@ -10,6 +10,7 @@ import { ERROR_NOTICE_TIMEOUT } from './consts';
 import { format } from 'date-fns';
 import { MatterData } from './types';
 import { MarkdownItCommentPluginInstance } from './markdown-it-comment-plugin';
+import { isLegacyWordPressComApiType } from './api-types';
 
 export type SafeAny = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -41,7 +42,9 @@ export function rendererProfile(profile: WpProfile, container: HTMLElement): Set
     name += ' ✔️';
   }
   let desc = profile.endpoint;
-  if (profile.wpComOAuth2Token) {
+  if (isLegacyWordPressComApiType(profile.apiType)
+    && profile.wpComOAuth2Token
+  ) {
     desc += ` / 🆔 / 🔒`;
   } else {
     if (profile.saveUsername) {
@@ -59,7 +62,7 @@ export function rendererProfile(profile: WpProfile, container: HTMLElement): Set
 export function isValidUrl(url: string): boolean {
   try {
     return Boolean(new URL(url));
-  } catch(e) {
+  } catch {
     return false;
   }
 }

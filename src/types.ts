@@ -1,5 +1,6 @@
 import { SafeAny } from './utils';
 import { isArray, isString } from 'lodash-es';
+import type { MediaMetadata } from './media-metadata';
 
 export interface MarkdownItPlugin {
   updateOptions: (opts: SafeAny) => void;
@@ -11,6 +12,7 @@ export interface Media {
   mimeType: string;
   fileName: string;
   content: ArrayBuffer;
+  metadata?: MediaMetadata;
 }
 
 export function isMedia(obj: SafeAny): obj is Media {

@@ -6,6 +6,11 @@ interface RestOptions {
   url: URL;
 }
 
+export interface RestResponse {
+  status: number;
+  json: unknown;
+}
+
 export class RestClient {
 
   /**
@@ -17,8 +22,6 @@ export class RestClient {
   constructor(
     private readonly options: RestOptions
   ) {
-    console.log(options);
-
     this.href = this.options.url.href;
     if (this.href.endsWith('/')) {
       this.href = this.href.substring(0, this.href.length - 1);
@@ -41,7 +44,6 @@ export class RestClient {
       headers: {},
       ...options
     };
-    console.log('REST GET', endpoint, opts);
     const response = await requestUrl({
       url: endpoint,
       method: 'GET',
@@ -51,8 +53,57 @@ export class RestClient {
         ...opts.headers
       }
     });
-    console.log('GET response', response);
     return response.json;
+  }
+
+  async httpGetResponse(
+    path: string,
+    options?: {
+      headers: Record<string, string>
+    }
+  ): Promise<RestResponse> {
+    let realPath = path;
+    if (realPath.startsWith('/')) {
+      realPath = realPath.substring(1);
+    }
+    const response = await requestUrl({
+      url: this.href + '/' + realPath,
+      method: 'GET',
+      headers: {
+        'content-type': 'application/json',
+        'user-agent': 'obsidian.md',
+        ...options?.headers
+      },
+      throw: false
+    });
+    return {
+      status: response.status,
+      json: response.json
+    };
+  }
+
+  async httpStatus(
+    path: string,
+    options?: {
+      headers: Record<string, string>
+    }
+  ): Promise<number> {
+    let realPath = path;
+    if (realPath.startsWith('/')) {
+      realPath = realPath.substring(1);
+    }
+
+    const response = await requestUrl({
+      url: this.href + '/' + realPath,
+      method: 'GET',
+      headers: {
+        'content-type': 'application/json',
+        'user-agent': 'obsidian.md',
+        ...options?.headers
+      },
+      throw: false
+    });
+    return response.status;
   }
 
   async httpPost(
@@ -93,7 +144,6 @@ export class RestClient {
       },
       body: requestBody
     });
-    console.log('POST response', response);
     return response.json;
   }
 

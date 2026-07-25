@@ -26,7 +26,33 @@ export const MarkdownItImagePluginInstance = {
   },
 }
 
+function applyStandardImageDimensions(md: MarkdownIt): void {
+  md.core.ruler.after('inline', 'ob_img_standard_dimensions', state => {
+    state.tokens.forEach(blockToken => {
+      blockToken.children?.forEach(token => {
+        if (token.type !== 'image') {
+          return;
+        }
+        const size = token.content.match(/^(.*?)(?:\|(\d+)(?:x(\d+))?|^(\d+)(?:x(\d+))?)$/);
+        if (!size) {
+          return;
+        }
+        const altText = size[1] ?? '';
+        const width = size[2] ?? size[4];
+        const height = size[3] ?? size[5];
+        token.content = altText;
+        const altToken = new Token('text', '', 0);
+        altToken.content = altText;
+        token.children = [ altToken ];
+        token.attrSet('width', width);
+        if (height) token.attrSet('height', height);
+      });
+    });
+  });
+}
+
 function plugin(md: MarkdownIt): void {
+  applyStandardImageDimensions(md);
   md.inline.ruler.after('image', tokenType, (state, silent) => {
     const regex = /^!\[\[([^|\]\n]+)(\|([^\]\n]+))?\]\]/;
     const match = state.src.slice(state.pos).match(regex);

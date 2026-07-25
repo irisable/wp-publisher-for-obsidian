@@ -5,6 +5,11 @@ import { openProfileModal } from './wp-profile-modal';
 import { isNil } from 'lodash-es';
 import { rendererProfile } from './utils';
 import { AbstractModal } from './abstract-modal';
+import { forgetProfileMultiSiteTargets } from './multi-site-targets';
+import {
+  reconcileSyncBaselineProfiles,
+  removeProfileSyncBaselines
+} from './sync-baseline';
 
 
 /**
@@ -41,17 +46,24 @@ export class WpProfileManageModal extends AbstractModal {
         setting.addButton(button => button
           .setButtonText(this.t('profilesManageModal_showDetails'))
           .onClick(async () => {
-            const { profile: newProfile, atIndex } = await openProfileModal(
+            const result = await openProfileModal(
               this.plugin,
               profile,
               index
             );
-            console.log('updateProfile', newProfile, atIndex);
+            if (!result) {
+              return;
+            }
+            const { profile: newProfile, atIndex } = result;
             if (!isNil(atIndex) && atIndex > -1) {
               if (newProfile.isDefault) {
                 this.profiles.forEach(it => it.isDefault = false);
               }
               this.profiles[atIndex] = newProfile;
+              this.plugin.settings.syncBaselineCache = reconcileSyncBaselineProfiles(
+                this.plugin.settings.syncBaselineCache,
+                this.profiles
+              );
               renderProfiles();
               this.plugin.saveSettings().then();
             }
@@ -61,6 +73,14 @@ export class WpProfileManageModal extends AbstractModal {
           .setTooltip(this.t('profilesManageModal_deleteTooltip'))
           .onClick(() => {
             this.profiles.splice(index, 1);
+            this.plugin.settings.multiSiteTargets = forgetProfileMultiSiteTargets(
+              this.plugin.settings.multiSiteTargets,
+              profile.id
+            );
+            this.plugin.settings.syncBaselineCache = removeProfileSyncBaselines(
+              this.plugin.settings.syncBaselineCache,
+              profile.id
+            );
             if (profile.isDefault) {
               if (this.profiles.length > 0) {
                 this.profiles[0].isDefault = true;
@@ -82,10 +102,13 @@ export class WpProfileManageModal extends AbstractModal {
         .setButtonText(this.t('profilesManageModal_create'))
         .setCta()
         .onClick(async () => {
-          const { profile } = await openProfileModal(
+          const result = await openProfileModal(
             this.plugin
           );
-          console.log('appendProfile', profile);
+          if (!result) {
+            return;
+          }
+          const { profile } = result;
           // if no profile, make the first one default
           if (this.profiles.length === 0) {
             profile.isDefault = true;

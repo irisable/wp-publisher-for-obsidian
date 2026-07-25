@@ -9,10 +9,30 @@ import {
 } from './wp-client';
 import { XmlRpcClient } from './xmlrpc-client';
 import { AbstractWordPressClient } from './abstract-wp-client';
-import { PostStatus, PostType, PostTypeConst, Term } from './wp-api';
+import { PostType, Term } from './wp-api';
 import { SafeAny, showError } from './utils';
 import { WpProfile } from './wp-profile';
 import { Media } from './types';
+import {
+  buildRankMathSeoMetadata,
+  buildSecondaryTitleMetadata,
+  buildXmlRpcEditorialMetadata,
+  EditorialMetadataCapabilities
+} from './editorial-metadata';
+import type { MediaMetadata } from './media-metadata';
+import {
+  buildXmlRpcPublishPayload,
+  isContentOnlyUpdate
+} from './publish-strategy';
+import {
+  parseXmlRpcRemotePost,
+  RemotePostError,
+  withRemotePostSecondaryTitle,
+  withRemotePostSeoMetadata,
+  RemotePostErrorCode,
+  type RemotePostDocument,
+  type RemotePostTarget
+} from './remote-post';
 
 interface FaultResponse {
   faultCode: string;
@@ -26,6 +46,11 @@ function isFaultResponse(response: unknown): response is FaultResponse {
 export class WpXmlRpcClient extends AbstractWordPressClient {
 
   private readonly client: XmlRpcClient;
+  private supportsRankMathSeo = false;
+  private supportsRankMathSeoRead = false;
+  private supportsMediaMetadata = false;
+  private supportsSecondaryTitle = false;
+  private supportsSecondaryTitleRead = false;
 
   constructor(
     readonly plugin: WordpressPlugin,
@@ -39,42 +64,27 @@ export class WpXmlRpcClient extends AbstractWordPressClient {
     });
   }
 
+  protected getEditorialMetadataCapabilities(): EditorialMetadataCapabilities {
+    return {
+      focusKeyword: this.supportsRankMathSeo,
+      metaDescription: this.supportsRankMathSeo,
+      secondaryTitle: this.supportsSecondaryTitle
+    };
+  }
+
   async publish(
     title: string,
     content: string,
     postParams: WordPressPostParams,
     certificate: WordPressAuthParams
   ): Promise<WordPressClientResult<WordPressPublishResult>> {
-    let publishContent;
-    if (postParams.postType === PostTypeConst.Page) {
-      publishContent = {
-        post_type: postParams.postType,
-        post_status: postParams.status,
-        comment_status: postParams.commentStatus,
-        post_title: title,
-        post_content: content,
-      };
-    } else {
-      publishContent = {
-        post_type: postParams.postType,
-        post_status: postParams.status,
-        comment_status: postParams.commentStatus,
-        post_title: title,
-        post_content: content,
-        terms: {
-          'category': postParams.categories
-        },
-        terms_names: {
-          'post_tag': postParams.tags
-        }
-      };
-    }
-    if (postParams.status === PostStatus.Future) {
-      publishContent = {
-        ...publishContent,
-        post_date: postParams.datetime ?? new Date()
-      };
-    }
+    const contentOnly = isContentOnlyUpdate(postParams);
+    const publishContent = buildXmlRpcPublishPayload({
+      title,
+      content,
+      postParams,
+      editorialMetadata: buildXmlRpcEditorialMetadata(postParams)
+    });
     let publishPromise;
     if (postParams.postId) {
       publishPromise = this.client.methodCall('wp.editPost', [
@@ -103,14 +113,119 @@ export class WpXmlRpcClient extends AbstractWordPressClient {
         response
       };
     }
+    const postId = String(postParams.postId ?? response);
+    const warnings: string[] = [];
+    const seoMetadata = contentOnly
+      ? {}
+      : buildRankMathSeoMetadata(postParams);
+    if (this.supportsRankMathSeo && Object.keys(seoMetadata).length > 0) {
+      const seoResponse = await this.client.methodCall('wpPublisher.updateSeoMeta', [
+        0,
+        certificate.username,
+        certificate.password,
+        postId,
+        seoMetadata
+      ]);
+      if (isFaultResponse(seoResponse)) {
+        warnings.push(this.plugin.i18n.t('warning_rankMathUpdateFailed', {
+          message: seoResponse.faultString
+        }));
+      }
+    }
+    const secondaryTitleMetadata = contentOnly
+      ? {}
+      : buildSecondaryTitleMetadata(postParams);
+    if (this.supportsSecondaryTitle && Object.keys(secondaryTitleMetadata).length > 0) {
+      const secondaryTitleResponse = await this.client.methodCall(
+        'wpPublisher.updateSecondaryTitle',
+        [
+          0,
+          certificate.username,
+          certificate.password,
+          postId,
+          secondaryTitleMetadata
+        ]
+      );
+      if (isFaultResponse(secondaryTitleResponse)) {
+        warnings.push(this.plugin.i18n.t('warning_secondaryTitleUpdateFailed', {
+          message: secondaryTitleResponse.faultString
+        }));
+      }
+    }
     return {
       code: WordPressClientReturnCode.OK,
       data: {
-        postId: postParams.postId ?? (response as string),
-        categories: postParams.categories
+        postId,
+        categories: postParams.categories,
+        ...(warnings.length > 0 ? { warnings } : {})
       },
       response
     };
+  }
+
+  protected async fetchRemotePost(
+    target: RemotePostTarget,
+    certificate: WordPressAuthParams
+  ): Promise<RemotePostDocument> {
+    const response = await this.client.methodCall('wp.getPost', [
+      0,
+      certificate.username,
+      certificate.password,
+      target.postId,
+      [ 'post', 'terms', 'custom_fields' ]
+    ]);
+    if (isFaultResponse(response)) {
+      const status = Number(response.faultCode);
+      const authenticationFailed = status === 401
+        || /authentication|incorrect.+(?:username|password)|invalid.+(?:username|password)/i
+          .test(response.faultString);
+      const code = authenticationFailed
+        ? RemotePostErrorCode.Authentication
+        : status === 403
+          ? RemotePostErrorCode.Permission
+          : [ 404, 410 ].includes(status)
+            ? RemotePostErrorCode.Missing
+            : RemotePostErrorCode.Network;
+      throw new RemotePostError(code, response.faultString);
+    }
+    let document = parseXmlRpcRemotePost(response);
+    if (this.supportsRankMathSeoRead) {
+      const seoResponse = await this.client.methodCall('wpPublisher.getSeoMeta', [
+        0,
+        certificate.username,
+        certificate.password,
+        target.postId
+      ]);
+      if (!isFaultResponse(seoResponse)) {
+        const seo = seoResponse as SafeAny;
+        document = withRemotePostSeoMetadata(document, {
+          ...(typeof seo.focusKeyword === 'string' && seo.focusKeyword
+            ? { focusKeyword: seo.focusKeyword }
+            : {}),
+          ...(typeof seo.metaDescription === 'string' && seo.metaDescription
+            ? { metaDescription: seo.metaDescription }
+            : {})
+        });
+      }
+    }
+    if (this.supportsSecondaryTitleRead) {
+      const secondaryTitleResponse = await this.client.methodCall(
+        'wpPublisher.getSecondaryTitle',
+        [
+          0,
+          certificate.username,
+          certificate.password,
+          target.postId
+        ]
+      );
+      if (!isFaultResponse(secondaryTitleResponse)) {
+        const value = (secondaryTitleResponse as SafeAny).secondaryTitle;
+        if (typeof value === 'string') {
+          document = withRemotePostSecondaryTitle(document, value);
+        }
+      }
+    }
+    return document;
   }
 
   async getCategories(certificate: WordPressAuthParams): Promise<Term[]> {
@@ -146,6 +261,11 @@ export class WpXmlRpcClient extends AbstractWordPressClient {
   }
 
   async validateUser(certificate: WordPressAuthParams): Promise<WordPressClientResult<boolean>> {
+    this.supportsRankMathSeo = false;
+    this.supportsRankMathSeoRead = false;
+    this.supportsMediaMetadata = false;
+    this.supportsSecondaryTitle = false;
+    this.supportsSecondaryTitleRead = false;
     const response = await this.client.methodCall('wp.getProfile', [
       0,
       certificate.username,
@@ -161,6 +281,18 @@ export class WpXmlRpcClient extends AbstractWordPressClient {
         response
       };
     } else {
+      const capabilities = await this.client.methodCall('wpPublisher.getCapabilities', [
+        0,
+        certificate.username,
+        certificate.password
+      ]);
+      if (!isFaultResponse(capabilities)) {
+        this.supportsRankMathSeo = (capabilities as SafeAny).rankMathSeo === true;
+        this.supportsRankMathSeoRead = (capabilities as SafeAny).rankMathSeoRead === true;
+        this.supportsMediaMetadata = (capabilities as SafeAny).mediaMetadata === true;
+        this.supportsSecondaryTitle = (capabilities as SafeAny).secondaryTitle === true;
+        this.supportsSecondaryTitleRead = (capabilities as SafeAny).secondaryTitleRead === true;
+      }
       return {
         code: WordPressClientReturnCode.OK,
         data: !!response,
@@ -178,6 +310,26 @@ export class WpXmlRpcClient extends AbstractWordPressClient {
       description: name,
       count: 0
     });
+  }
+
+  protected async mediaExists(
+    attachmentId: string | number,
+    certificate: WordPressAuthParams
+  ): Promise<boolean | undefined> {
+    try {
+      const response = await this.client.methodCall('wp.getMediaItem', [
+        0,
+        certificate.username,
+        certificate.password,
+        attachmentId
+      ]);
+      if (!isFaultResponse(response)) {
+        return true;
+      }
+      return [ 404, 410 ].includes(Number(response.faultCode)) ? false : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   async uploadMedia(media: Media, certificate: WordPressAuthParams): Promise<WordPressClientResult<WordPressMediaUploadResult>> {
@@ -205,11 +357,56 @@ export class WpXmlRpcClient extends AbstractWordPressClient {
       return {
         code: WordPressClientReturnCode.OK,
         data: {
-          url: (response as SafeAny).url
+          url: (response as SafeAny).url,
+          id: (response as SafeAny).id,
+          metadataApplied: false
         },
         response
       };
     }
+  }
+
+  async updateMediaMetadata(
+    attachmentId: string | number,
+    metadata: MediaMetadata,
+    certificate: WordPressAuthParams
+  ): Promise<WordPressClientResult<boolean>> {
+    if (!this.supportsMediaMetadata) {
+      return {
+        code: WordPressClientReturnCode.Error,
+        error: {
+          code: 'media_metadata_unsupported',
+          message: this.plugin.i18n.t('error_mediaMetadataUnsupported')
+        }
+      };
+    }
+    const response = await this.client.methodCall('wpPublisher.updateMediaMetadata', [
+      0,
+      certificate.username,
+      certificate.password,
+      attachmentId,
+      {
+        ...(metadata.title ? { title: metadata.title } : {}),
+        ...(metadata.altText ? { alt: metadata.altText } : {}),
+        ...(metadata.caption ? { caption: metadata.caption } : {}),
+        ...(metadata.description ? { description: metadata.description } : {})
+      }
+    ]);
+    if (isFaultResponse(response)) {
+      return {
+        code: WordPressClientReturnCode.Error,
+        error: {
+          code: response.faultCode,
+          message: response.faultString
+        },
+        response
+      };
+    }
+    return {
+      code: WordPressClientReturnCode.OK,
+      data: true,
+      response
+    };
   }
 
 }

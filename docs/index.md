@@ -1,109 +1,135 @@
-## WP Publisher for Obsidian
+# WP Publisher for Obsidian
 
-This is an Obsidian plugin for publishing notes to WordPress CMS.
+WP Publisher turns an Obsidian note into a reviewed WordPress publishing target.
+It publishes native Gutenberg blocks by default and supports explicit,
+loss-aware synchronization back to Obsidian.
 
-## How to install
+For a concise overview, installation steps, front matter examples, privacy
+disclosures, and development commands, start with the
+[project README](../README.md). The [feature map](feature-map.md) is the
+canonical implementation and acceptance reference.
 
-The plugin could be installed in `Community plugins`
-by searching `wp publisher` as keyword.
+## Configure A WordPress Profile
 
-![Installing](assets/images/01GX5KHAK2BSM1CQKT19D6B2AX.png)
+Open **Settings > WP Publisher for Obsidian > Profiles** and create a profile.
+Each profile has its own endpoint, authentication method, remembered taxonomy,
+media cache, and optional publishing defaults.
 
-## How to use
+### Application Password REST
 
-Before publishing, necessary WordPress settings should be done
-in `WordPress` tab of Settings.
+This is the recommended connection for self-hosted WordPress 5.6 or newer.
 
-![Settings](assets/images/01GX5KHAK2S10XJRZE6CMBSGJB.png)
+1. Sign in to WordPress and open **Users > Profile**.
+2. Find **Application Passwords**.
+3. Create a password specifically for WP Publisher.
+4. Copy it immediately and use it with your WordPress username in the profile.
+5. Set the profile API type to **REST API with Application Password**.
 
-You can find settings as following:
+Application Passwords are revocable and avoid storing your main WordPress
+password.
 
-Let's say a WordPress server could be access by https://www.mywp.com .
+### XML-RPC
 
-* **Profiles**: WordPress profiles. You could add multiple WordPress profiles
-  in order to publish notes to multiple WordPress servers.
-* **Show icon in sidebar**: Show WordPress button in sidebar so you could click it
-  to publish current note without opening command palette.
-* **Default Post Status**: Default post status when publishing.
-* **Default Post Comment Status**: Default comment status when publishing.
-* **Remember last selected categories**: Turn it on if you want to remember
-  last selected categories when publishing.
-* **Show WordPress edit confirmation**: Turn it on if you want to open
-  WordPress editing page after publishing successfully.
-* **MathJax Output Format**: Output format of MathJax.
-  * SVG: An image format that supports by browser so there is no need configure
-    for WordPress. But if you try to edit using WordPress editor, SVG images
-    will be lost for WordPress editor does not support SVG.
-  * TeX: A WordPress plugin, such as [Simple Mathjax](https://wordpress.org/plugins/simple-mathjax/),
-    is needed for rendering but you can edit using WordPress editor.
+Choose XML-RPC only when the site exposes `xmlrpc.php`. Some hosts and security
+plugins disable XML-RPC. The default path is `/xmlrpc.php`, but it can be
+changed per profile.
 
-While WordPress profiles could be managed in another modal.
+### miniOrange REST
 
-![Profiles](assets/images/01GX5KHAK2G1CQQKKY37RA4KMY.png)
+The miniOrange REST authentication option is retained for compatible existing
+sites. Configure the WordPress plugin for Basic Authentication with username
+and password, then select the matching profile type in Obsidian.
 
-Creates or edits a profile needs such information:
+### WordPress.com
 
-![Profile](assets/images/01GX5KHAK22NWQ6CPWEBR1GG11.png)
+WordPress.com is not a supported connection type in 1.0 and is not offered when
+creating a profile. Existing profiles that already contain a saved token remain
+readable for migration compatibility, but this release cannot authorize,
+validate, or refresh that token.
 
-Some need be explained.
+## Publishing Precedence
 
-* **Name**: Name of this profile.
-* **WordPress URL**: A full path of WordPress.
-  It should be https://www.mywp.com. Note that if your site does not support
-  URL rewrite, you may add `/index.php` appending to your domain.
-* **API Type**: At this version we support following API types:
-  * XML-RPC: Enabled by default but some hosts may disable it for safety problems.
-  * REST API Authentication by miniOrange: REST API is enabled by default since WordPress 4.7.
-    An extra plugin named miniOrange is needed to be installed and enabled in order to
-    protect core writable APIs.
-  * REST API Authentication by application password: REST API is enabled by default
-    since WordPress 4.7 while application password was introduced in WordPress 5.6.
-    If you are OK with WordPress 5.6, this is recommended as no plugin is needed.
-  * REST API for wordpress.com only: REST API is enabled by default on wordpress.com.
+For ordinary publishing, values are resolved in this order:
 
-  **Note** The mentioned plugins miniOrange must be installed and enabled in WordPress server
-  and configured correctly as following steps.
+1. The choices reviewed in the current publish dialog.
+2. Explicit note properties.
+3. A selected publishing template.
+4. Per-profile defaults.
+5. Global plugin defaults.
 
-## How to config WordPress plugins
+An explicit existing target retains its linked post type. A content-only update
+sends only the body and leaves title, taxonomy, status, and editorial metadata
+unchanged.
 
-### WordPress REST API Authentication by miniOrange
+## Gutenberg And Classic HTML
 
-In the plugin settings page, select `BASIC AUTHENTICATION`.
+The default Block Editor mode serializes paragraphs, headings, lists, images,
+quotes, code, tables, and separators as native WordPress blocks. Mermaid stays
+in an inert code block. Content that cannot be represented safely is isolated
+in a Custom HTML block rather than silently changed.
 
-![miniOrange](assets/images/wp-miniOrange-1.png)
+Classic HTML remains available under **Content format** for compatibility with
+older sites or workflows.
 
-In the next page, select `Username & Password with Base64 Encoding` then `Next`.
+## Categories And Tags
 
-![miniOrange](assets/images/wp-miniOrange-2.png)
+Categories are selected in a searchable hierarchy. The note stores portable
+category slugs; WordPress IDs are resolved only for the selected profile during
+publish. Tags are normalized from note properties, templates, or profile
+defaults and are created when necessary.
 
-Finally, click `Finish`.
+## Media
 
-![miniOrange](assets/images/wp-miniOrange-3.png)
+Local Markdown images and Obsidian embeds are uploaded before the post. A
+per-profile SHA-256 cache reuses unchanged files, verifies that the WordPress
+attachment still exists, and recovers from stale attachment IDs.
 
-## How to config application passwords
+Featured images can be a WordPress attachment ID or a Vault image reference.
+Attachment title, Alt Text, caption, and description can be supplied through an
+adjacent `wp-media` comment as documented in the [README](../README.md).
 
-Application passwords was introduced in WordPress 5.6.
+## Synchronization Safety
 
-You need to login WordPress and navigate to 'Profile' page.
+Remote actions are explicit:
 
-![applicationPasswords](assets/images/wp-app-pwd-1.png)
+- **Inspect linked WordPress post** reads and normalizes the remote post.
+- **Pull changes from WordPress** previews selectable field changes.
+- **Sync with WordPress** classifies the note and offers safe actions.
+- **Resolve WordPress sync conflict** performs a reviewed three-way merge.
+- **Undo last WordPress pull** restores the guarded pre-pull note revision.
 
-You could use any application name you want, then click 'Add New Application Password' button.
+Unknown Gutenberg blocks and structurally lossy HTML are stored in protected
+source regions. Damaged protected regions are rejected during a later publish
+instead of being dropped.
 
-![applicationPasswords](assets/images/wp-app-pwd-2.png)
+## Companion Plugin
 
-Here you need to save generated password as it only shows once. Spaces in the password will be ignored by WordPress automatically.
+The optional [WP Publisher Companion](../wordpress-companion/README.md) exposes
+a strict authenticated allowlist for Rank Math, Secondary Title, and XML-RPC
+attachment metadata. Upload its ZIP through **Plugins > Add New > Upload
+Plugin** in WordPress.
 
-Then you could use your login username and the application password in WP Publisher for Obsidian.
+## Troubleshooting
 
-## How to use with WordPress.com
+### The plugin is visible but cannot be enabled
 
-WordPress.com supports OAuth 2.0 to protect REST API. This plugin add OAuth 2.0 for wordpress.com.
+Confirm that the folder contains the matching `main.js`, `manifest.json`, and
+`styles.css`, then reload Obsidian. Disable the legacy `obsidian-wordpress`
+plugin as well so duplicate commands cannot target the wrong publishing setup.
 
-When using with WordPress.com, a valid wordpress.com site URL should be input first
-(let's say https://yoursitename.wordpress.com). Then select 'REST API for wordpress.com', the browser
-should be raised to open wordpress.com authorize page. After clicking 'Approve' button, obsidian.md
-should be raised again and the plugin should be authorized.
+### Rank Math or Secondary Title fields are unavailable
 
-**Note**, the plugin fetched wordpress.com token might be expired in two weeks by default. If publishes
-failed some day, 'Refresh' button should be clicked in order to get a new token.
+Install and activate WP Publisher Companion, then reopen or validate the
+profile. The corresponding WordPress plugin must also be active.
+
+### A cached image returns 404
+
+WP Publisher verifies cached attachment IDs. If the WordPress media item was
+deleted, the stale cache entry is discarded and the local image is uploaded
+again.
+
+### A remote block is preserved instead of converted
+
+This is intentional when Markdown cannot represent the source without loss.
+The protected source can round-trip back to WordPress and remains inert in
+Obsidian.

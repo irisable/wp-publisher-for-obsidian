@@ -105,6 +105,7 @@ dist
 
 # IDE
 .idea/
+.DS_Store
 
 # Compiled files
 dist/

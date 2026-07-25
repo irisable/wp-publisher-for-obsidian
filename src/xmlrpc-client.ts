@@ -27,8 +27,6 @@ export class XmlRpcClient {
   constructor(
     private readonly options: XmlRpcOptions
   ) {
-    console.log(options);
-
     this.href = this.options.url.href;
     if (this.href.endsWith('/')) {
       this.href = this.href.substring(0, this.href.length - 1);
@@ -50,7 +48,6 @@ export class XmlRpcClient {
     params: unknown
   ): Promise<unknown> {
     const xml = this.objectToXml(method, params);
-    console.log(`Endpoint: ${this.endpoint}, ${method}, request: ${xml}`, params);
     return request({
       url: this.endpoint,
       method: 'POST',
@@ -60,7 +57,9 @@ export class XmlRpcClient {
       },
       body: xml
     })
-      .then(res => this.responseXmlToObject(res));
+      .then(res => {
+        return this.responseXmlToObject(res);
+      });
   }
 
   private objectToXml(method: string, ...obj: unknown[]): string {
@@ -153,7 +152,6 @@ export class XmlRpcClient {
         .children[0];
       response = this.fromElement(responseValue);
     }
-    console.log(`response: ${xml}`, response);
     return response;
   }
 

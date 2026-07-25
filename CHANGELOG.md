@@ -1,19 +1,70 @@
 # Changelog
 
-All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
+All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [1.0.0] - 2026-07-25
+
+### Added
+
+* Native Gutenberg serialization for common Markdown structures with explicit
+  Custom HTML fallback and classic HTML compatibility mode.
+* Slug, excerpt, featured image, tags, Focus Keyword, SEO description, and
+  Secondary Title publishing with canonical front matter aliases.
+* Hierarchy-aware searchable category selection with portable category slugs.
+* Per-profile publishing defaults, named publishing templates, local preview,
+  explicit update strategies, and validated scheduled publishing.
+* SHA-256 media deduplication, stale attachment recovery, featured-image reuse,
+  and attachment title, Alt Text, caption, and description support.
+* Publish history, multi-site publishing, and a guarded single-worker batch
+  queue with retry for failed or skipped notes.
+* Read-only remote inspection, selective pull, bounded sync baselines,
+  divergence detection, guarded undo, and reviewed three-way merge.
+* Optional WP Publisher Companion for authenticated Rank Math, Secondary Title,
+  and XML-RPC attachment metadata.
+* A 199-test behavioral regression suite covering the completed P0-P3 feature
+  set.
 
 ### Changed
 
 * Fork renamed from `obsidian-wordpress` to `wp-publisher-for-obsidian`.
 * Plugin display name updated to `WP Publisher for Obsidian`.
+* Public plugin ID changed to `wp-publisher`; minimum Obsidian version is 1.8.7.
 * Release workflow and local repository metadata updated for the renamed project.
+* Gutenberg Block Editor output is now the default publishing format.
+* Publishing is bound to an explicit source file and frozen revision instead of
+  whichever editor happens to be active.
+* WordPress relationship data uses namespaced `wp*` properties, while legacy
+  property names remain readable and are migrated on successful write-back.
+* WordPress.com is no longer offered for new profiles. Existing saved-token
+  profiles remain readable only for legacy migration compatibility.
 
 ### Fixed
 
 * Restored build compatibility with current dependencies, including `markdown-it` 14 type imports.
-* Fixed WordPress.com OAuth token event typing so the project builds cleanly again.
+* Preserved unrelated front matter and stopped page publishing from deleting
+  existing categories or tags.
+* Removed extra paragraph spacing from WordPress list output while preserving
+  intentional multi-paragraph list items.
+* Prevented duplicate media uploads and recovered when a cached attachment was
+  deleted on WordPress.
+* Kept Markdown image Alt Text separate from a visible figcaption unless
+  `caption: =alt` is explicitly requested.
+* Made create-versus-update state, submit progress, profile editing, and
+  category search behavior visible and deterministic.
+* Prompted for credentials when a profile does not remember them and resolved a
+  cancelled login instead of leaving the publish operation waiting forever.
+
+### Security
+
+* Removed production debug logs that could expose profile credentials,
+  authorization headers, OAuth tokens, or complete WordPress responses.
+* Enforced the remember-username and remember-password choices at the
+  persistence boundary so temporary login values are not written to
+  `data.json`.
+* Removed the upstream WordPress.com OAuth client ID, embedded secret,
+  authorization callback, and token exchange from the distributed bundle.
+* Moved media removed by pull undo or transaction rollback to trash instead of
+  permanently deleting it.
 
 Historical entries below are preserved from the upstream `devbean/obsidian-wordpress` project.
 

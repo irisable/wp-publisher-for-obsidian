@@ -5,84 +5,68 @@ on:
     tags:
       - "*"
 
-env:
-  PLUGIN_NAME: wp-publisher-for-obsidian
+permissions:
+  contents: write
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v6
+
       - name: Use Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "20.x"
+          node-version: "24.x"
           cache: npm
 
-      - name: Build
-        id: build
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint Companion PHP
+        run: php -l wordpress-companion/wp-publisher-companion/wp-publisher-companion.php
+
+      - name: Validate and build
+        run: npm run check
+
+      - name: Validate release metadata
+        run: npm run release:check
+
+      - name: Package release assets
+        shell: bash
         run: |
-          npm ci
-          npm run build
-          mkdir ${{ env.PLUGIN_NAME }}
-          cp main.js manifest.json styles.css ${{ env.PLUGIN_NAME }}
-          zip -r ${{ env.PLUGIN_NAME }}.zip ${{ env.PLUGIN_NAME }}
-          ls
-          echo "::set-output name=tag_name::$(git tag --sort version:refname | tail -n 1)"
+          plugin_id="$(node -p "require('./manifest.json').id")"
+          mkdir -p release
+          zip -j "release/${plugin_id}-${GITHUB_REF_NAME}.zip" \
+            main.js manifest.json styles.css
+          (
+            cd wordpress-companion
+            zip -r "../release/wp-publisher-companion.zip" \
+              wp-publisher-companion
+          )
+          sha256sum \
+            main.js \
+            manifest.json \
+            styles.css \
+            "release/${plugin_id}-${GITHUB_REF_NAME}.zip" \
+            release/wp-publisher-companion.zip \
+            > release/SHA256SUMS.txt
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
+      - name: Create draft GitHub release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ github.ref }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: ${{ github.ref }}
-          draft: false
-          prerelease: false
-
-      - name: Upload zip file
-        id: upload-zip
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./${{ env.PLUGIN_NAME }}.zip
-          asset_name: ${{ env.PLUGIN_NAME }}-${{ steps.build.outputs.tag_name }}.zip
-          asset_content_type: application/zip
-
-      - name: Upload main.js
-        id: upload-main
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./main.js
-          asset_name: main.js
-          asset_content_type: text/javascript
-
-      - name: Upload manifest.json
-        id: upload-manifest
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./manifest.json
-          asset_name: manifest.json
-          asset_content_type: application/json
-
-      - name: Upload styles.css
-        id: upload-css
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./styles.css
-          asset_name: styles.css
-          asset_content_type: text/css
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          plugin_id="$(node -p "require('./manifest.json').id")"
+          gh release create "$GITHUB_REF_NAME" \
+            main.js \
+            manifest.json \
+            styles.css \
+            "release/${plugin_id}-${GITHUB_REF_NAME}.zip" \
+            release/wp-publisher-companion.zip \
+            release/SHA256SUMS.txt \
+            --draft \
+            --generate-notes \
+            --title "$GITHUB_REF_NAME"

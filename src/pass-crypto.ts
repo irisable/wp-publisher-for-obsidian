@@ -8,7 +8,8 @@ export class PassCrypto {
   constructor() { }
 
   canUse(): boolean {
-    return !isNil(crypto)
+    return typeof crypto !== 'undefined'
+      && !isNil(crypto)
       && !isNil(crypto.subtle)
       && isFunction(crypto.getRandomValues)
       && isFunction(crypto.subtle.generateKey)
@@ -63,7 +64,7 @@ export class PassCrypto {
           this.base64ToBuffer(encrypted));
         return new TextDecoder().decode(decrypted);
       }
-      return 'xx';
+      return this.reverseString(this.base64ToString(this.reverseString(encrypted)));
     } else {
       return this.reverseString(this.base64ToString(this.reverseString(encrypted)));
     }
@@ -90,11 +91,11 @@ export class PassCrypto {
   }
 
   private stringToBase64(str: string): string {
-    return btoa(str);
+    return this.bufferToBase64(new TextEncoder().encode(str));
   }
 
   private base64ToString(base64: string): string {
-    return atob(base64);
+    return new TextDecoder().decode(this.base64ToBuffer(base64));
   }
 
 }

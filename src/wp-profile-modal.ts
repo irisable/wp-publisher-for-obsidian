@@ -1,18 +1,24 @@
-import { Notice, Setting } from 'obsidian';
+import { Setting } from 'obsidian';
 import WordpressPlugin from './main';
 import { WpProfile } from './wp-profile';
-import { EventType, WP_OAUTH2_REDIRECT_URI } from './consts';
-import { WordPressClientReturnCode } from './wp-client';
-import { generateCodeVerifier, OAuth2Client, WordPressOAuth2Token } from './oauth2-client';
-import { AppState } from './app-state';
 import { isValidUrl, showError } from './utils';
-import { ApiType } from './plugin-settings';
+import {
+  ApiType,
+  isLegacyWordPressComApiType,
+  SELECTABLE_API_TYPES
+} from './api-types';
 import { AbstractModal } from './abstract-modal';
+import { CommentStatus, PostStatus } from './wp-api';
+import { normalizeWordPressTags } from './front-matter';
+import type { ProfilePublishingDefaults } from './profile-publishing-defaults';
+import { createProfileId } from './profile-identity';
+import { validSyncMediaFolder } from './sync-media';
 
 
 export function openProfileModal(
   plugin: WordpressPlugin,
   profile: WpProfile = {
+    id: createProfileId(),
     name: '',
     apiType: ApiType.XML_RPC,
     endpoint: '',
@@ -23,14 +29,14 @@ export function openProfileModal(
     lastSelectedCategories: [ 1 ],
   },
   atIndex = -1
-): Promise<{ profile: WpProfile, atIndex?: number }> {
-  return new Promise((resolve, reject) => {
+): Promise<{ profile: WpProfile, atIndex?: number } | undefined> {
+  return new Promise(resolve => {
     const modal = new WpProfileModal(plugin, (profile, atIndex) => {
       resolve({
         profile,
         atIndex
       });
-    }, profile, atIndex);
+    }, () => resolve(undefined), profile, atIndex);
     modal.open();
   });
 }
@@ -42,12 +48,14 @@ class WpProfileModal extends AbstractModal {
 
   private readonly profileData: WpProfile;
 
-  private readonly tokenGotRef;
+  private submitted = false;
 
   constructor(
     readonly plugin: WordpressPlugin,
     private readonly onSubmit: (profile: WpProfile, atIndex?: number) => void,
+    private readonly onCancel: () => void,
     private readonly profile: WpProfile = {
+      id: createProfileId(),
       name: '',
       apiType: ApiType.XML_RPC,
       endpoint: '',
@@ -62,18 +70,23 @@ class WpProfileModal extends AbstractModal {
     super(plugin);
 
     this.profileData = Object.assign({}, profile);
-    this.tokenGotRef = AppState.events.on(EventType.OAUTH2_TOKEN_GOT, async (...data: unknown[]) => {
-      const token = data[0] as WordPressOAuth2Token | undefined;
-      this.profileData.wpComOAuth2Token = token;
-      if (atIndex >= 0) {
-        // if token is undefined, just remove it
-        this.plugin.settings.profiles[atIndex].wpComOAuth2Token = token;
-        await this.plugin.saveSettings();
-      }
-    });
   }
 
   onOpen() {
+    const getApiTypeLabel = (apiType: ApiType): string => {
+      switch (apiType) {
+        case ApiType.XML_RPC:
+          return this.t('settings_apiTypeXmlRpc');
+        case ApiType.RestAPI_miniOrange:
+          return this.t('settings_apiTypeRestMiniOrange');
+        case ApiType.RestApi_ApplicationPasswords:
+          return this.t('settings_apiTypeRestApplicationPasswords');
+        case ApiType.Legacy_WpComOAuth2:
+          return this.t('settings_apiTypeRestWpComOAuth2');
+        default:
+          return '';
+      }
+    };
     const getApiTypeDesc = (apiType: ApiType): string => {
       switch (apiType) {
         case ApiType.XML_RPC:
@@ -82,7 +95,7 @@ class WpProfileModal extends AbstractModal {
           return this.t('settings_apiTypeRestMiniOrangeDesc');
         case ApiType.RestApi_ApplicationPasswords:
           return this.t('settings_apiTypeRestApplicationPasswordsDesc');
-        case ApiType.RestApi_WpComOAuth2:
+        case ApiType.Legacy_WpComOAuth2:
           return this.t('settings_apiTypeRestWpComOAuth2Desc');
         default:
           return '';
@@ -118,38 +131,21 @@ class WpProfileModal extends AbstractModal {
         .setName(this.t('settings_apiType'))
         .setDesc(this.t('settings_apiTypeDesc'))
         .addDropdown((dropdown) => {
+          SELECTABLE_API_TYPES.forEach(apiType => {
+            dropdown.addOption(apiType, getApiTypeLabel(apiType));
+          });
+          if (isLegacyWordPressComApiType(this.profileData.apiType)) {
+            dropdown.addOption(
+              ApiType.Legacy_WpComOAuth2,
+              getApiTypeLabel(ApiType.Legacy_WpComOAuth2)
+            );
+          }
           dropdown
-            .addOption(ApiType.XML_RPC, this.t('settings_apiTypeXmlRpc'))
-            .addOption(ApiType.RestAPI_miniOrange, this.t('settings_apiTypeRestMiniOrange'))
-            .addOption(ApiType.RestApi_ApplicationPasswords, this.t('settings_apiTypeRestApplicationPasswords'))
-            .addOption(ApiType.RestApi_WpComOAuth2, this.t('settings_apiTypeRestWpComOAuth2'))
             .setValue(this.profileData.apiType)
-            .onChange(async (value) => {
-              let hasError = false;
-              let newApiType = value;
-              if (value === ApiType.RestApi_WpComOAuth2) {
-                if (!this.profileData.endpoint.includes('wordpress.com')) {
-                  showError(this.t('error_notWpCom'));
-                  hasError = true;
-                  newApiType = this.profileData.apiType;
-                }
-              }
-              this.profileData.apiType = newApiType as ApiType;
+            .onChange((value) => {
+              this.profileData.apiType = value as ApiType;
               apiDesc = getApiTypeDesc(this.profileData.apiType);
               renderProfile();
-              if (!hasError) {
-                if (value === ApiType.RestApi_WpComOAuth2) {
-                  if (this.profileData.wpComOAuth2Token) {
-                    const endpointUrl = new URL(this.profileData.endpoint);
-                    const blogUrl = new URL(this.profileData.wpComOAuth2Token.blogUrl);
-                    if (endpointUrl.host !== blogUrl.host) {
-                      await this.refreshWpComToken();
-                    }
-                  } else {
-                    await this.refreshWpComToken();
-                  }
-                }
-              }
             });
         });
       content.createEl('p', {
@@ -166,34 +162,13 @@ class WpProfileModal extends AbstractModal {
             .onChange((value) => {
               this.profileData.xmlRpcPath = value;
             }));
-      } else if (this.profileData.apiType === ApiType.RestApi_WpComOAuth2) {
+      } else if (isLegacyWordPressComApiType(this.profileData.apiType)) {
         new Setting(content)
-          .setName(this.t('settings_wpComOAuth2RefreshToken'))
-          .setDesc(this.t('settings_wpComOAuth2RefreshTokenDesc'))
-          .addButton(button => button
-            .setButtonText(this.t('settings_wpComOAuth2ValidateTokenButtonText'))
-            .onClick(() => {
-              if (this.profileData.wpComOAuth2Token) {
-                OAuth2Client.getWpOAuth2Client(this.plugin).validateToken({
-                  token: this.profileData.wpComOAuth2Token.accessToken
-                })
-                  .then(result => {
-                    if (result.code === WordPressClientReturnCode.Error) {
-                      showError(result.error?.message + '');
-                    } else {
-                      new Notice(this.t('message_wpComTokenValidated'));
-                    }
-                  });
-              }
-            }))
-          .addButton(button => button
-            .setButtonText(this.t('settings_wpComOAuth2RefreshTokenButtonText'))
-            .onClick(async () => {
-              await this.refreshWpComToken();
-            }));
+          .setName(this.t('settings_wpComLegacyProfile'))
+          .setDesc(this.t('settings_wpComLegacyProfileDesc'));
       }
 
-      if (this.profileData.apiType !== ApiType.RestApi_WpComOAuth2) {
+      if (!isLegacyWordPressComApiType(this.profileData.apiType)) {
         const usernameSetting = new Setting(content)
           .setName(this.t('profileModal_rememberUsername'));
         if (this.profileData.saveUsername) {
@@ -216,12 +191,14 @@ class WpProfileModal extends AbstractModal {
           .setName(this.t('profileModal_rememberPassword'));
         if (this.profileData.savePassword) {
           passwordSetting
-            .addText(text => text
-              .setValue(this.profileData.password ?? '')
-              .onChange((value) => {
+            .addText(text => {
+              text.inputEl.type = 'password';
+              text
+                .setValue(this.profileData.password ?? '')
+                .onChange((value) => {
                 this.profileData.password = value;
-              })
-            );
+                });
+            });
         }
         passwordSetting.addToggle(toggle => toggle
           .setValue(this.profileData.savePassword)
@@ -231,6 +208,82 @@ class WpProfileModal extends AbstractModal {
           })
         );
       }
+
+      const defaultsHeader = content.createDiv({
+        cls: 'wp-publisher-profile-defaults-heading'
+      });
+      defaultsHeader.createEl('h3', {
+        text: this.t('profileModal_publishDefaults')
+      });
+      defaultsHeader.createEl('p', {
+        text: this.t('profileModal_publishDefaultsDesc')
+      });
+
+      new Setting(content)
+        .setName(this.t('profileModal_defaultStatus'))
+        .setDesc(this.t('profileModal_defaultStatusDesc'))
+        .addDropdown(dropdown => dropdown
+          .addOption('', this.t('profileModal_inheritGlobal'))
+          .addOption(PostStatus.Draft, this.t('publishModal_postStatusDraft'))
+          .addOption(PostStatus.Publish, this.t('publishModal_postStatusPublish'))
+          .addOption(PostStatus.Private, this.t('publishModal_postStatusPrivate'))
+          .setValue(this.profileData.publishDefaults?.status ?? '')
+          .onChange(value => {
+            this.updatePublishingDefaults({
+              status: value ? value as PostStatus : undefined
+            });
+          })
+        );
+
+      new Setting(content)
+        .setName(this.t('profileModal_defaultCommentStatus'))
+        .setDesc(this.t('profileModal_defaultCommentStatusDesc'))
+        .addDropdown(dropdown => dropdown
+          .addOption('', this.t('profileModal_inheritGlobal'))
+          .addOption(CommentStatus.Open, this.t('publishModal_commentStatusOpen'))
+          .addOption(CommentStatus.Closed, this.t('publishModal_commentStatusClosed'))
+          .setValue(this.profileData.publishDefaults?.commentStatus ?? '')
+          .onChange(value => {
+            this.updatePublishingDefaults({
+              commentStatus: value ? value as CommentStatus : undefined
+            });
+          })
+        );
+
+      new Setting(content)
+        .setName(this.t('profileModal_defaultPostType'))
+        .setDesc(this.t('profileModal_defaultPostTypeDesc'))
+        .addText(text => text
+          .setPlaceholder('post')
+          .setValue(this.profileData.publishDefaults?.postType ?? '')
+          .onChange(value => {
+            this.updatePublishingDefaults({ postType: value.trim() || undefined });
+          })
+        );
+
+      new Setting(content)
+        .setName(this.t('profileModal_defaultTags'))
+        .setDesc(this.t('profileModal_defaultTagsDesc'))
+        .addText(text => text
+          .setPlaceholder(this.t('publishModal_tagsPlaceholder'))
+          .setValue(this.profileData.publishDefaults?.tags?.join(', ') ?? '')
+          .onChange(value => {
+            const tags = normalizeWordPressTags(value);
+            this.updatePublishingDefaults({ tags: tags.length > 0 ? tags : undefined });
+          })
+        );
+
+      new Setting(content)
+        .setName(this.t('profileModal_syncMediaFolder'))
+        .setDesc(this.t('profileModal_syncMediaFolderDesc'))
+        .addText(text => text
+          .setPlaceholder('Attachments/WordPress')
+          .setValue(this.profileData.syncMediaFolder ?? '')
+          .onChange(value => {
+            this.profileData.syncMediaFolder = value.trim() || undefined;
+          })
+        );
+
       new Setting(content)
         .setName(this.t('profileModal_setDefault'))
         .addToggle(toggle => toggle
@@ -253,7 +306,22 @@ class WpProfileModal extends AbstractModal {
               showError(this.t('error_noUsername'));
             } else if (this.profileData.savePassword && !this.profileData.password) {
               showError(this.t('error_noPassword'));
+            } else if (isLegacyWordPressComApiType(this.profileData.apiType)
+              && !this.profileData.wpComOAuth2Token
+            ) {
+              showError(this.t('error_invalidWpComToken'));
+            } else if (this.profileData.syncMediaFolder
+              && !validSyncMediaFolder(this.profileData.syncMediaFolder)
+            ) {
+              showError(this.t('profileModal_syncMediaFolderInvalid'));
             } else {
+              this.profileData.syncMediaFolder = validSyncMediaFolder(
+                this.profileData.syncMediaFolder
+              );
+              if (!isLegacyWordPressComApiType(this.profileData.apiType)) {
+                delete this.profileData.wpComOAuth2Token;
+              }
+              this.submitted = true;
               this.onSubmit(this.profileData, this.atIndex);
               this.close();
             }
@@ -270,21 +338,24 @@ class WpProfileModal extends AbstractModal {
   }
 
   onClose() {
-    if (this.tokenGotRef) {
-      AppState.events.offref(this.tokenGotRef);
+    if (!this.submitted) {
+      this.onCancel();
     }
     const { contentEl } = this;
     contentEl.empty();
   }
 
-  private async refreshWpComToken(): Promise<void> {
-    AppState.codeVerifier = generateCodeVerifier();
-    await OAuth2Client.getWpOAuth2Client(this.plugin).getAuthorizeCode({
-      redirectUri: WP_OAUTH2_REDIRECT_URI,
-      scope: [ 'posts', 'taxonomy', 'media', 'sites' ],
-      blog: this.profileData.endpoint,
-      codeVerifier: AppState.codeVerifier
-    });
+  private updatePublishingDefaults(
+    update: Partial<ProfilePublishingDefaults>
+  ): void {
+    const defaults = { ...this.profileData.publishDefaults, ...update };
+    if (!defaults.status) delete defaults.status;
+    if (!defaults.commentStatus) delete defaults.commentStatus;
+    if (!defaults.postType) delete defaults.postType;
+    if (!defaults.tags?.length) delete defaults.tags;
+    this.profileData.publishDefaults = Object.keys(defaults).length > 0
+      ? defaults
+      : undefined;
   }
 
 }

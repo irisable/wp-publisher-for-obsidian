@@ -1,8 +1,11 @@
-import { WordPressOAuth2Token } from './oauth2-client';
-import { ApiType } from './plugin-settings';
-import { PostType } from './wp-api';
+import type { ApiType } from './api-types';
+import type { MediaCache } from './media-cache';
+import type { ProfilePublishingDefaults } from './profile-publishing-defaults';
 
 export interface WpProfile {
+
+  /** Stable local identity that survives profile renames. */
+  id: string;
 
   /**
    * Profile name.
@@ -43,10 +46,8 @@ export interface WpProfile {
     vector?: string;
   };
 
-  /**
-   * OAuth2 token for wordpress.com
-   */
-  wpComOAuth2Token?: WordPressOAuth2Token;
+  /** Saved token retained only for legacy WordPress.com profile compatibility. */
+  wpComOAuth2Token?: LegacyWordPressOAuth2Token;
 
   /**
    * Save username to local data.
@@ -67,4 +68,21 @@ export interface WpProfile {
    * Last selected post categories.
    */
   lastSelectedCategories: number[];
+
+  /** Uploaded media indexed by a SHA-256 content fingerprint. */
+  mediaCache?: MediaCache;
+
+  /** Vault-relative folder used only for explicit remote-media downloads. */
+  syncMediaFolder?: string;
+
+  /** Optional defaults used only when the note does not provide a value. */
+  publishDefaults?: ProfilePublishingDefaults;
+}
+
+export interface LegacyWordPressOAuth2Token {
+  accessToken: string;
+  tokenType: string;
+  blogId: string;
+  blogUrl: string;
+  scope: string;
 }

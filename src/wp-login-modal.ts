@@ -9,18 +9,29 @@ export function openLoginModal(
   plugin: WordpressPlugin,
   profile: WpProfile,
   validateUser: (auth: WordPressAuthParams) => Promise<boolean>,
-): Promise<{ auth: WordPressAuthParams, loginModal: Modal }> {
-  return new Promise((resolve, reject) => {
+): Promise<{ auth: WordPressAuthParams, loginModal: Modal } | undefined> {
+  return new Promise(resolve => {
+    let settled = false;
     const modal = new WpLoginModal(plugin, profile, async (auth, loginModal) => {
-      const validate = await validateUser(auth);
-      if (validate) {
-        resolve({
-          auth,
-          loginModal
-        });
-        modal.close();
-      } else {
-        showError(plugin.i18n.t('error_invalidUser'));
+      try {
+        const validate = await validateUser(auth);
+        if (validate) {
+          settled = true;
+          resolve({
+            auth,
+            loginModal
+          });
+          modal.close();
+        } else {
+          showError(plugin.i18n.t('error_invalidUser'));
+        }
+      } catch (error) {
+        showError(error);
+      }
+    }, () => {
+      if (!settled) {
+        settled = true;
+        resolve(undefined);
       }
     });
     modal.open();
@@ -35,7 +46,11 @@ export class WpLoginModal extends AbstractModal {
   constructor(
     readonly plugin: WordpressPlugin,
     private readonly profile: WpProfile,
-    private readonly onSubmit: (auth: WordPressAuthParams, modal: Modal) => void
+    private readonly onSubmit: (
+      auth: WordPressAuthParams,
+      modal: Modal
+    ) => Promise<void>,
+    private readonly onCancel: () => void
   ) {
     super(plugin);
   }
@@ -70,6 +85,7 @@ export class WpLoginModal extends AbstractModal {
       .setName(this.t('loginModal_password'))
       .setDesc(this.t('loginModal_passwordDesc', { url: this.profile.endpoint }))
       .addText(text => {
+        text.inputEl.type = 'password';
         text
           .setValue(this.profile.password ?? '')
           .onChange(async (value) => {
@@ -118,23 +134,38 @@ export class WpLoginModal extends AbstractModal {
     //       }),
     //   );
     new Setting(contentEl)
-      .addButton(button => button
-        .setButtonText(this.t('loginModal_loginButtonText'))
-        .setCta()
-        .onClick(() => {
-          if (!username) {
-            showError(this.t('error_noUsername'));
-          } else if (!password) {
-            showError(this.t('error_noPassword'));
-          }
-          if (username && password) {
-            this.onSubmit({ username, password }, this);
-          }
-        })
-      );
+      .addButton(button => {
+        let submitting = false;
+        button
+          .setButtonText(this.t('loginModal_loginButtonText'))
+          .setCta()
+          .onClick(async () => {
+            if (submitting) return;
+            if (!username) {
+              showError(this.t('error_noUsername'));
+            } else if (!password) {
+              showError(this.t('error_noPassword'));
+            }
+            if (username && password) {
+              submitting = true;
+              button
+                .setDisabled(true)
+                .setButtonText(this.t('loginModal_loggingIn'));
+              try {
+                await this.onSubmit({ username, password }, this);
+              } finally {
+                submitting = false;
+                button
+                  .setDisabled(false)
+                  .setButtonText(this.t('loginModal_loginButtonText'));
+              }
+            }
+          });
+      });
   }
 
   onClose() {
+    this.onCancel();
     const { contentEl } = this;
     contentEl.empty();
   }

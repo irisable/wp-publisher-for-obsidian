@@ -3,12 +3,12 @@ import { WpXmlRpcClient } from './wp-xml-rpc-client';
 import {
   WpRestClient,
   WpRestClientAppPasswordContext,
+  WpRestClientLegacyWpComContext,
   WpRestClientMiniOrangeContext,
-  WpRestClientWpComOAuth2Context
 } from './wp-rest-client';
 import { WordPressClient } from './wp-client';
 import { WpProfile } from './wp-profile';
-import { ApiType } from './plugin-settings';
+import { ApiType } from './api-types';
 import { showError } from './utils';
 
 export function getWordPressClient(
@@ -30,9 +30,9 @@ export function getWordPressClient(
     case ApiType.RestApi_ApplicationPasswords:
       client = new WpRestClient(plugin, profile, new WpRestClientAppPasswordContext());
       break;
-    case ApiType.RestApi_WpComOAuth2:
+    case ApiType.Legacy_WpComOAuth2:
       if (profile.wpComOAuth2Token) {
-        client = new WpRestClient(plugin, profile, new WpRestClientWpComOAuth2Context(
+        client = new WpRestClient(plugin, profile, new WpRestClientLegacyWpComContext(
           profile.wpComOAuth2Token.blogId,
           profile.wpComOAuth2Token.accessToken
         ));

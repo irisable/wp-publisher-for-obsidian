@@ -1,37 +1,59 @@
-import { Plugin } from 'obsidian';
+import { Notice, Plugin, TFile } from 'obsidian';
 import { WordpressSettingTab } from './settings';
 import { addIcons } from './icons';
 import { WordPressPostParams } from './wp-client';
 import { I18n } from './i18n';
-import { EventType, WP_OAUTH2_REDIRECT_URI, WP_OAUTH2_URL_ACTION } from './consts';
-import { OAuth2Client } from './oauth2-client';
-import { CommentStatus, PostStatus, PostTypeConst } from './wp-api';
+import { CommentStatus, PostStatus } from './wp-api';
 import { openProfileChooserModal } from './wp-profile-chooser-modal';
 import { AppState } from './app-state';
 import { DEFAULT_SETTINGS, SettingsVersion, upgradeSettings, WordpressPluginSettings } from './plugin-settings';
 import { PassCrypto } from './pass-crypto';
 import { doClientPublish, setupMarkdownParser, showError } from './utils';
 import { cloneDeep } from 'lodash-es';
+import { resolveProfilePublishingDefaults } from './profile-publishing-defaults';
+import { normalizePublishHistory } from './publish-history';
+import { openPublishHistoryModal } from './wp-publish-history-modal';
+import { ensureStableProfileIds } from './profile-identity';
+import {
+  moveMultiSiteNoteTargets,
+  normalizeMultiSiteTargets
+} from './multi-site-targets';
+import { openMultiSitePublishModal } from './wp-multi-site-publish-modal';
+import { openBatchPublishModal } from './wp-batch-publish-modal';
+import { openRemoteInspectorModal } from './wp-remote-inspector-modal';
+import { openSyncConflictModal } from './wp-sync-conflict-modal';
+import { openWordPressSyncModal } from './wp-sync-modal';
+import {
+  openPullPreviewModal,
+  undoLastWordPressPull
+} from './wp-pull-preview-modal';
+import {
+  movePullRestoreNotePaths,
+  normalizePullRestoreSnapshots
+} from './note-sync-transaction';
+import { ConfirmCode, openConfirmModal } from './confirm-modal';
+import {
+  moveSyncBaselinesForNote,
+  normalizeSyncBaselineCache,
+  reconcileSyncBaselineProfiles
+} from './sync-baseline';
+import { removeUnrememberedCredentials } from './profile-credentials';
 
 export default class WordpressPlugin extends Plugin {
 
   #settings: WordpressPluginSettings | undefined;
   get settings() {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     return this.#settings!;
   }
 
   #i18n: I18n | undefined;
   get i18n() {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     return this.#i18n!;
   }
 
   private ribbonWpIcon: HTMLElement | null = null;
 
   async onload() {
-    console.log('loading wp-publisher-for-obsidian plugin');
-
     await this.loadSettings();
     // lang should be load early, but after settings
     this.#i18n = new I18n(this.#settings?.lang);
@@ -40,7 +62,7 @@ export default class WordpressPlugin extends Plugin {
 
     addIcons();
 
-    this.registerProtocolHandler();
+    this.registerMultiSiteTargetRename();
     this.updateRibbonIcon();
 
     this.addCommand({
@@ -49,12 +71,16 @@ export default class WordpressPlugin extends Plugin {
       editorCallback: () => {
         const defaultProfile = this.#settings?.profiles.find(it => it.isDefault);
         if (defaultProfile) {
-          const params: WordPressPostParams = {
+          const defaults = resolveProfilePublishingDefaults(defaultProfile, {
             status: this.#settings?.defaultPostStatus ?? PostStatus.Draft,
-            commentStatus: this.#settings?.defaultCommentStatus ?? CommentStatus.Open,
+            commentStatus: this.#settings?.defaultCommentStatus ?? CommentStatus.Open
+          });
+          const params: WordPressPostParams = {
+            status: defaults.status,
+            commentStatus: defaults.commentStatus,
             categories: defaultProfile.lastSelectedCategories ?? [ 1 ],
-            postType: PostTypeConst.Post,
-            tags: [],
+            postType: defaults.postType,
+            tags: defaults.tags,
             title: '',
             content: ''
           };
@@ -73,6 +99,94 @@ export default class WordpressPlugin extends Plugin {
       }
     });
 
+    this.addCommand({
+      id: 'publishMultiSite',
+      name: this.#i18n.t('command_publishMultiSite'),
+      editorCallback: () => {
+        openMultiSitePublishModal(this);
+      }
+    });
+
+    this.addCommand({
+      id: 'publishBatch',
+      name: this.#i18n.t('command_publishBatch'),
+      callback: () => {
+        openBatchPublishModal(this);
+      }
+    });
+
+    this.addCommand({
+      id: 'publishHistory',
+      name: this.#i18n.t('command_publishHistory'),
+      callback: () => {
+        openPublishHistoryModal(this);
+      }
+    });
+
+    this.addCommand({
+      id: 'remoteInspector',
+      name: this.#i18n.t('command_remoteInspector'),
+      editorCallback: () => {
+        openRemoteInspectorModal(this);
+      }
+    });
+
+    this.addCommand({
+      id: 'syncWithWordPress',
+      name: this.#i18n.t('command_syncWithWordPress'),
+      editorCallback: () => {
+        openWordPressSyncModal(this);
+      }
+    });
+
+    this.addCommand({
+      id: 'pullChangesFromWordPress',
+      name: this.#i18n.t('command_pullChanges'),
+      editorCallback: () => {
+        openPullPreviewModal(this);
+      }
+    });
+
+    this.addCommand({
+      id: 'resolveWordPressSyncConflict',
+      name: this.#i18n.t('command_resolveSyncConflict'),
+      editorCallback: () => {
+        openSyncConflictModal(this);
+      }
+    });
+
+    this.addCommand({
+      id: 'undoLastWordPressPull',
+      name: this.#i18n.t('command_undoPull'),
+      editorCallback: () => {
+        void undoLastWordPressPull(this);
+      }
+    });
+
+    this.addCommand({
+      id: 'clearSyncBaselines',
+      name: this.#i18n.t('command_clearSyncBaselines'),
+      callback: async () => {
+        const count = this.settings.syncBaselineCache.entries.length;
+        if (count === 0) {
+          new Notice(this.i18n.t('syncBaseline_clearEmpty'));
+          return;
+        }
+        const result = await openConfirmModal({
+          message: this.i18n.t('syncBaseline_clearConfirm', {
+            count: String(count)
+          }),
+          confirmText: this.i18n.t('syncBaseline_clearConfirmButton')
+        }, this);
+        if (result.code !== ConfirmCode.Confirm) {
+          return;
+        }
+        this.settings.syncBaselineCache = { entries: [] };
+        await this.saveSettings();
+        new Notice(this.i18n.t('syncBaseline_clearSuccess'));
+      }
+    });
+
     this.addSettingTab(new WordpressSettingTab(this));
   }
 
@@ -83,7 +197,30 @@ export default class WordpressPlugin extends Plugin {
     this.#settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     const { needUpgrade, settings } = await upgradeSettings(this.#settings, SettingsVersion.V2);
     this.#settings = settings;
-    if (needUpgrade) {
+    this.#settings.publishHistory = normalizePublishHistory(
+      this.#settings.publishHistory
+    );
+    this.#settings.multiSiteTargets = normalizeMultiSiteTargets(
+      this.#settings.multiSiteTargets
+    );
+    this.#settings.pullRestoreSnapshots = normalizePullRestoreSnapshots(
+      this.#settings.pullRestoreSnapshots
+    );
+    const rawBaselineCache = JSON.stringify(this.#settings.syncBaselineCache);
+    this.#settings.syncBaselineCache = normalizeSyncBaselineCache(
+      this.#settings.syncBaselineCache
+    );
+    const profileIdsChanged = ensureStableProfileIds(this.#settings.profiles);
+    this.#settings.syncBaselineCache = reconcileSyncBaselineProfiles(
+      this.#settings.syncBaselineCache,
+      this.#settings.profiles
+    );
+    const baselineCacheChanged = rawBaselineCache
+      !== JSON.stringify(this.#settings.syncBaselineCache);
+    const credentialsChanged = this.#settings.profiles
+      .map(profile => removeUnrememberedCredentials(profile))
+      .some(Boolean);
+    if (needUpgrade || profileIdsChanged || baselineCacheChanged || credentialsChanged) {
       await this.saveSettings();
     }
 
@@ -106,12 +243,13 @@ export default class WordpressPlugin extends Plugin {
     const settings = cloneDeep(this.settings);
     for (let i = 0; i < settings.profiles.length; i++) {
       const profile = settings.profiles[i];
+      removeUnrememberedCredentials(profile);
       const password = profile.password;
-      if (password) {
+      if (profile.savePassword && password) {
         const crypto = new PassCrypto();
         profile.encryptedPassword = await crypto.encrypt(password);
-        delete profile.password;
       }
+      delete profile.password;
     }
     await this.saveData(settings);
   }
@@ -143,28 +281,43 @@ export default class WordpressPlugin extends Plugin {
     }
   }
 
-  private registerProtocolHandler(): void {
-    this.registerObsidianProtocolHandler(WP_OAUTH2_URL_ACTION, async (e) => {
-      if (e.action === WP_OAUTH2_URL_ACTION) {
-        if (e.state) {
-          if (e.error) {
-            showError(this.i18n.t('error_wpComAuthFailed', {
-              error: e.error,
-              desc: e.error_description.replace(/\+/g,' ')
-            }));
-            AppState.events.trigger(EventType.OAUTH2_TOKEN_GOT, undefined);
-          } else if (e.code) {
-            const token = await OAuth2Client.getWpOAuth2Client(this).getToken({
-              code: e.code,
-              redirectUri: WP_OAUTH2_REDIRECT_URI,
-              codeVerifier: AppState.codeVerifier
-            });
-            console.log(token);
-            AppState.events.trigger(EventType.OAUTH2_TOKEN_GOT, token);
-          }
-        }
+  private registerMultiSiteTargetRename(): void {
+    this.registerEvent(this.app.vault.on('rename', async (file, oldPath) => {
+      if (!(file instanceof TFile)) {
+        return;
       }
-    });
+      const moved = moveMultiSiteNoteTargets(
+        this.settings.multiSiteTargets,
+        oldPath,
+        file.path
+      );
+      let changed = false;
+      if (moved !== this.settings.multiSiteTargets) {
+        this.settings.multiSiteTargets = moved;
+        changed = true;
+      }
+      if (this.settings.pullRestoreSnapshots.some(item => item.notePath === oldPath)) {
+        this.settings.pullRestoreSnapshots = movePullRestoreNotePaths(
+          this.settings.pullRestoreSnapshots,
+          oldPath,
+          file.path
+        );
+        changed = true;
+      }
+      if (this.settings.syncBaselineCache.entries.some(
+        item => item.notePath === oldPath
+      )) {
+        this.settings.syncBaselineCache = moveSyncBaselinesForNote(
+          this.settings.syncBaselineCache,
+          oldPath,
+          file.path
+        );
+        changed = true;
+      }
+      if (changed) {
+        await this.saveSettings();
+      }
+    }));
   }
 
 }

@@ -7,6 +7,8 @@ import { CommentConvertMode, MathJaxOutputType } from './plugin-settings';
 import { WpProfile } from './wp-profile';
 import { setupMarkdownParser } from './utils';
 import { AppState } from './app-state';
+import { WordPressContentFormat } from './wordpress-blocks';
+import { PublishingTemplateManageModal } from './publishing-template-manage-modal';
 
 
 export class WordpressSettingTab extends PluginSettingTab {
@@ -48,7 +50,9 @@ export class WordpressSettingTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-    containerEl.createEl('h1', { text: t('settings_title') });
+    new Setting(containerEl)
+      .setName(t('settings_title'))
+      .setHeading();
 
     let mathJaxOutputTypeDesc = getMathJaxOutputTypeDesc(this.plugin.settings.mathJaxOutputType);
     let commentConvertModeDesc = getCommentConvertModeDesc(this.plugin.settings.commentConvertMode);
@@ -60,6 +64,15 @@ export class WordpressSettingTab extends PluginSettingTab {
         .setButtonText(t('settings_profilesModal'))
         .onClick(() => {
           new WpProfileManageModal(this.plugin).open();
+        }));
+
+    new Setting(containerEl)
+      .setName(t('settings_publishingTemplates'))
+      .setDesc(t('settings_publishingTemplatesDesc'))
+      .addButton(button => button
+        .setButtonText(t('settings_publishingTemplatesButton'))
+        .onClick(() => {
+          new PublishingTemplateManageModal(this.plugin).open();
         }));
 
     new Setting(containerEl)
@@ -136,6 +149,26 @@ export class WordpressSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }),
       );
+
+    new Setting(containerEl)
+      .setName(t('settings_contentFormat'))
+      .setDesc(t('settings_contentFormatDesc'))
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption(
+            WordPressContentFormat.BlockEditor,
+            t('settings_contentFormatBlockEditor')
+          )
+          .addOption(
+            WordPressContentFormat.ClassicHtml,
+            t('settings_contentFormatClassicHtml')
+          )
+          .setValue(this.plugin.settings.contentFormat)
+          .onChange(async (value) => {
+            this.plugin.settings.contentFormat = value as WordPressContentFormat;
+            await this.plugin.saveSettings();
+          });
+      });
 
     new Setting(containerEl)
       .setName(t('settings_mathJaxOutputType'))
