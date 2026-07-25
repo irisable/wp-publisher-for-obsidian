@@ -6,7 +6,6 @@ import { MatterData } from './types';
 import { ConfirmCode, openConfirmModal } from './confirm-modal';
 import { AbstractModal } from './abstract-modal';
 import IMask, { DynamicMaskType, InputMask } from 'imask';
-import { SafeAny } from './utils';
 import { format, parse } from 'date-fns';
 import {
   fillExcerptFromMetaDescription,
@@ -267,13 +266,12 @@ export class WpPublishModal extends AbstractModal {
           lazy: false,
           overwrite: true,
         };
-        this.scheduledInputEl = text.inputEl;
-        this.dateInputMask = IMask(text.inputEl, [
+        const masks: DynamicMaskType = [
           {
             ...dateMask,
             pattern: dateFormat,
             blocks: dateBlocks,
-            format: (date: SafeAny) => format(date, dateFormat),
+            format: (date: Date | null) => date ? format(date, dateFormat) : '',
             parse: (str: string) => parse(str, dateFormat, new Date())
           },
           {
@@ -297,12 +295,15 @@ export class WpPublishModal extends AbstractModal {
                 to: 59,
               },
             },
-            format: (date: SafeAny) => format(date, dateTimeFormat),
+            format: (date: Date | null) => date ? format(date, dateTimeFormat) : '',
             parse: (str: string) => parse(str, dateTimeFormat, new Date())
           }
-        ]);
+        ];
+        this.scheduledInputEl = text.inputEl;
+        const dateInputMask = IMask(text.inputEl, masks);
+        this.dateInputMask = dateInputMask;
 
-        this.dateInputMask.on('accept', () => {
+        dateInputMask.on('accept', () => {
           this.validateScheduledInput(params, false);
         });
         text.inputEl.addEventListener('blur', () => {

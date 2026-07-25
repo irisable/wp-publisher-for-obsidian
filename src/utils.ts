@@ -11,8 +11,7 @@ import { format } from 'date-fns';
 import { MatterData } from './types';
 import { MarkdownItCommentPluginInstance } from './markdown-it-comment-plugin';
 import { isLegacyWordPressComApiType } from './api-types';
-
-export type SafeAny = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+import { isUnknownRecord } from './unknown-value';
 
 export function openWithBrowser(url: string, queryParams: Record<string, undefined|number|string> = {}): void {
   window.open(`${url}?${generateQueryString(queryParams)}`);
@@ -26,8 +25,12 @@ export function generateQueryString(params: Record<string, undefined|number|stri
   ).toString();
 }
 
-export function isPromiseFulfilledResult<T>(obj: SafeAny): obj is PromiseFulfilledResult<T> {
-  return !!obj && obj.status === 'fulfilled' && obj.value;
+export function isPromiseFulfilledResult<T>(
+  obj: unknown
+): obj is PromiseFulfilledResult<T> {
+  return isUnknownRecord(obj)
+    && obj.status === 'fulfilled'
+    && 'value' in obj;
 }
 
 export function setupMarkdownParser(settings: WordpressPluginSettings): void {
@@ -83,7 +86,7 @@ export function doClientPublish(
   if (profile) {
     const client = getWordPressClient(plugin, profile);
     if (client) {
-      client.publishPost(defaultPostParams).then();
+      void client.publishPost(defaultPostParams);
     }
   } else {
     const noSuchProfileMessage = plugin.i18n.t('error_noSuchProfile', {
@@ -105,7 +108,7 @@ export function showError<T>(error: unknown): WordPressClientResult<T> {
   } else if (error instanceof Error) {
     errorMessage = error.message;
   } else {
-    errorMessage = (error as SafeAny).toString();
+    errorMessage = String(error);
   }
   new Notice(`❌ ${ errorMessage }`, ERROR_NOTICE_TIMEOUT);
   return {

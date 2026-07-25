@@ -1,6 +1,5 @@
 import type { TFile } from 'obsidian';
 import { CommentStatus, PostStatus, PostType } from './wp-api';
-import { SafeAny } from './utils';
 import type { PublishUpdateStrategy } from './publish-strategy';
 import type { MatterData } from './types';
 import type { RemotePostSnapshot, RemotePostTarget } from './remote-post';
@@ -17,7 +16,7 @@ interface _wpClientResult {
   /**
    * Response from WordPress server.
    */
-  response?: SafeAny;
+  response?: unknown;
 
   code: WordPressClientReturnCode;
 }
@@ -97,7 +96,7 @@ export interface WordPressPostParams {
 
 export interface WordPressPublishParams extends WordPressAuthParams {
   postParams: WordPressPostParams;
-  matterData: { [p: string]: SafeAny };
+  matterData: MatterData;
 }
 
 export interface WordPressPublishResult {

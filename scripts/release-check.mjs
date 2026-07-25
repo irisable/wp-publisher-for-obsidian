@@ -156,6 +156,20 @@ function checkCommunityPolicies() {
   for (const path of sourceFiles) {
     const source = readFileSync(path, 'utf8');
     const displayPath = relative(root, path);
+    for (const [index, line] of source.split('\n').entries()) {
+      const directive = /eslint-(?:disable|enable)(?:-line|-next-line)?\b/.test(line);
+      if (directive && /@typescript-eslint\/no-explicit-any\b/.test(line)) {
+        errors.push(
+          `no-explicit-any cannot be disabled in ${displayPath}:${index + 1}`
+        );
+      }
+      if (directive
+        && !/--\s+\S/.test(line)) {
+        errors.push(
+          `undescribed ESLint directive in ${displayPath}:${index + 1}`
+        );
+      }
+    }
     if (/\.style\.[A-Za-z]+\s*=|\.style\.setProperty\s*\(|attr:\s*\{[^}]*\bstyle\s*:/s.test(source)) {
       errors.push(`inline style assignment remains in ${displayPath}`);
     }

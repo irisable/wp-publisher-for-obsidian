@@ -10,7 +10,7 @@ import {
 import { XmlRpcClient } from './xmlrpc-client';
 import { AbstractWordPressClient } from './abstract-wp-client';
 import { PostType, Term } from './wp-api';
-import { SafeAny, showError } from './utils';
+import { showError } from './utils';
 import { WpProfile } from './wp-profile';
 import { Media } from './types';
 import {
@@ -33,6 +33,7 @@ import {
   type RemotePostDocument,
   type RemotePostTarget
 } from './remote-post';
+import { isUnknownRecord, requireUnknownRecord } from './unknown-value';
 
 interface FaultResponse {
   faultCode: string;
@@ -40,7 +41,9 @@ interface FaultResponse {
 }
 
 function isFaultResponse(response: unknown): response is FaultResponse {
-  return (response as FaultResponse).faultCode !== undefined;
+  return isUnknownRecord(response)
+    && typeof response.faultCode === 'string'
+    && typeof response.faultString === 'string';
 }
 
 export class WpXmlRpcClient extends AbstractWordPressClient {
@@ -196,8 +199,8 @@ export class WpXmlRpcClient extends AbstractWordPressClient {
         certificate.password,
         target.postId
       ]);
-      if (!isFaultResponse(seoResponse)) {
-        const seo = seoResponse as SafeAny;
+      if (!isFaultResponse(seoResponse) && isUnknownRecord(seoResponse)) {
+        const seo = seoResponse;
         document = withRemotePostSeoMetadata(document, {
           ...(typeof seo.focusKeyword === 'string' && seo.focusKeyword
             ? { focusKeyword: seo.focusKeyword }
@@ -218,8 +221,10 @@ export class WpXmlRpcClient extends AbstractWordPressClient {
           target.postId
         ]
       );
-      if (!isFaultResponse(secondaryTitleResponse)) {
-        const value = (secondaryTitleResponse as SafeAny).secondaryTitle;
+      if (!isFaultResponse(secondaryTitleResponse)
+        && isUnknownRecord(secondaryTitleResponse)
+      ) {
+        const value = secondaryTitleResponse.secondaryTitle;
         if (typeof value === 'string') {
           document = withRemotePostSecondaryTitle(document, value);
         }
@@ -240,10 +245,10 @@ export class WpXmlRpcClient extends AbstractWordPressClient {
       showError(fault);
       throw new Error(fault);
     }
-    return (response as SafeAny).map((it: SafeAny) => ({
-      ...it,
-      id: it.term_id
-    })) ?? [];
+    if (!Array.isArray(response)) {
+      throw new Error('WordPress XML-RPC terms response was not an array.');
+    }
+    return response.map(parseXmlRpcTerm);
   }
 
   async getPostTypes(certificate: WordPressAuthParams): Promise<PostType[]> {
@@ -257,7 +262,7 @@ export class WpXmlRpcClient extends AbstractWordPressClient {
       showError(fault);
       throw new Error(fault);
     }
-    return Object.keys(response as SafeAny) ?? [];
+    return isUnknownRecord(response) ? Object.keys(response) : [];
   }
 
   async validateUser(certificate: WordPressAuthParams): Promise<WordPressClientResult<boolean>> {
@@ -286,12 +291,12 @@ export class WpXmlRpcClient extends AbstractWordPressClient {
         certificate.username,
         certificate.password
       ]);
-      if (!isFaultResponse(capabilities)) {
-        this.supportsRankMathSeo = (capabilities as SafeAny).rankMathSeo === true;
-        this.supportsRankMathSeoRead = (capabilities as SafeAny).rankMathSeoRead === true;
-        this.supportsMediaMetadata = (capabilities as SafeAny).mediaMetadata === true;
-        this.supportsSecondaryTitle = (capabilities as SafeAny).secondaryTitle === true;
-        this.supportsSecondaryTitleRead = (capabilities as SafeAny).secondaryTitleRead === true;
+      if (!isFaultResponse(capabilities) && isUnknownRecord(capabilities)) {
+        this.supportsRankMathSeo = capabilities.rankMathSeo === true;
+        this.supportsRankMathSeoRead = capabilities.rankMathSeoRead === true;
+        this.supportsMediaMetadata = capabilities.mediaMetadata === true;
+        this.supportsSecondaryTitle = capabilities.secondaryTitle === true;
+        this.supportsSecondaryTitleRead = capabilities.secondaryTitleRead === true;
       }
       return {
         code: WordPressClientReturnCode.OK,
@@ -354,11 +359,22 @@ export class WpXmlRpcClient extends AbstractWordPressClient {
         response
       };
     } else {
+      const data = requireUnknownRecord(response, 'WordPress XML-RPC media response');
+      if (typeof data.url !== 'string') {
+        return {
+          code: WordPressClientReturnCode.Error,
+          error: {
+            code: WordPressClientReturnCode.ServerInternalError,
+            message: 'WordPress XML-RPC media response did not include a URL.'
+          },
+          response
+        };
+      }
       return {
         code: WordPressClientReturnCode.OK,
         data: {
-          url: (response as SafeAny).url,
-          id: (response as SafeAny).id,
+          url: data.url,
+          ...(isIdentifier(data.id) ? { id: data.id } : {}),
           metadataApplied: false
         },
         response
@@ -409,4 +425,26 @@ export class WpXmlRpcClient extends AbstractWordPressClient {
     };
   }
 
+}
+
+function isIdentifier(value: unknown): value is string | number {
+  return typeof value === 'string' || typeof value === 'number';
+}
+
+function parseXmlRpcTerm(response: unknown): Term {
+  const data = requireUnknownRecord(response, 'WordPress XML-RPC term');
+  if (!isIdentifier(data.term_id)) {
+    throw new Error('WordPress XML-RPC term did not include term_id.');
+  }
+  const parent = data.parent;
+  const count = Number(data.count);
+  return {
+    id: String(data.term_id),
+    name: typeof data.name === 'string' ? data.name : '',
+    slug: typeof data.slug === 'string' ? data.slug : '',
+    taxonomy: typeof data.taxonomy === 'string' ? data.taxonomy : '',
+    description: typeof data.description === 'string' ? data.description : '',
+    ...(isIdentifier(parent) ? { parent } : {}),
+    count: Number.isFinite(count) ? count : 0
+  };
 }

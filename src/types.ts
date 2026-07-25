@@ -1,12 +1,11 @@
-import { SafeAny } from './utils';
-import { isArray, isString } from 'lodash-es';
+import { isString } from 'lodash-es';
 import type { MediaMetadata } from './media-metadata';
 
 export interface MarkdownItPlugin {
-  updateOptions: (opts: SafeAny) => void;
+  updateOptions: (opts: unknown) => void;
 }
 
-export type MatterData = { [p: string]: SafeAny };
+export type MatterData = Record<string, unknown>;
 
 export interface Media {
   mimeType: string;
@@ -15,7 +14,7 @@ export interface Media {
   metadata?: MediaMetadata;
 }
 
-export function isMedia(obj: SafeAny): obj is Media {
+export function isMedia(obj: unknown): obj is Media {
   return (
     typeof obj === 'object'
     && obj !== null
@@ -33,16 +32,19 @@ export function isMedia(obj: SafeAny): obj is Media {
  */
 export type FormItemNameMapper = (name: string, isArray: boolean) => string;
 
+type FormItemValue = string | Media;
+
 export class FormItems {
-  #formData: Record<string, SafeAny> = {};
+  #formData: Record<string, FormItemValue | FormItemValue[]> = {};
 
   append(name: string, data: string): FormItems;
   append(name: string, data: Media): FormItems;
   append(name: string, data: string | Media): FormItems {
     const existing = this.#formData[name];
-    if (existing) {
-      this.#formData[name] = [ existing ];
-      this.#formData[name].push(data);
+    if (existing !== undefined) {
+      this.#formData[name] = Array.isArray(existing)
+        ? [ ...existing, data ]
+        : [ existing, data ];
     } else {
       this.#formData[name] = data;
     }
@@ -76,7 +78,7 @@ export class FormItems {
     const encodedItemStart = encoder.encode(`--${option.boundary}${CRLF}`);
     const body: ArrayBuffer[] = [];
     Object.entries(this.#formData).forEach(([ name, data ]) => {
-      if (isArray(data)) {
+      if (Array.isArray(data)) {
         data.forEach(item => {
           itemPart(`${name}[]`, item, true);
         });

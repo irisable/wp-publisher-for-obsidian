@@ -1,7 +1,7 @@
 import { arrayBufferToBase64, request } from 'obsidian';
 import { isArray, isArrayBuffer, isBoolean, isDate, isNumber, isObject, isSafeInteger } from 'lodash-es';
 import { format, parse } from 'date-fns';
-import { SafeAny } from './utils';
+import { isUnknownRecord } from './unknown-value';
 
 interface XmlRpcOptions {
   url: URL;
@@ -90,11 +90,11 @@ export class XmlRpcClient {
     parent.appendChild(value);
     if (isSafeInteger(data)) {
       const i4 = doc.createElement('i4');
-      i4.appendText((data as SafeAny).toString());
+      i4.appendText(String(data));
       value.appendChild(i4);
     } else if (isNumber(data)) {
       const double = doc.createElement('double');
-      double.appendText((data as SafeAny).toString());
+      double.appendText(String(data));
       value.appendChild(double);
     } else if (isBoolean(data)) {
       const boolean = doc.createElement('boolean');
@@ -114,7 +114,7 @@ export class XmlRpcClient {
       const base64 = doc.createElement('base64');
       base64.setText(arrayBufferToBase64(data));
       value.appendChild(base64);
-    } else if (isObject(data)) {
+    } else if (isObject(data) && isUnknownRecord(data)) {
       const struct = doc.createElement('struct');
       for (const [ propName, propValue] of Object.entries(data)) {
         const member = doc.createElement('member');
@@ -127,7 +127,7 @@ export class XmlRpcClient {
       value.appendChild(struct);
     } else {
       const string = doc.createElement('string');
-      const cdata = doc.createCDATASection((data as SafeAny).toString());
+      const cdata = doc.createCDATASection(String(data));
       string.appendChild(cdata);
       value.appendChild(string);
     }
@@ -182,7 +182,7 @@ export class XmlRpcClient {
       }
       return array;
     } else if (tagName === 'struct') {
-      const struct: SafeAny = {};
+      const struct: Record<string, unknown> = {};
       const members = element.children; // <member>s
       for (let i = 0; i < members.length; i++) {
         const member = members[i];

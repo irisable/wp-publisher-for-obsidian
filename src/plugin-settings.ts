@@ -2,10 +2,10 @@ import { LanguageWithAuto } from './i18n';
 import { WpProfile } from './wp-profile';
 import { CommentStatus, PostStatus } from './wp-api';
 import { isNil, isUndefined } from 'lodash-es';
-import { SafeAny } from './utils';
 import { PassCrypto } from './pass-crypto';
 import { WP_DEFAULT_PROFILE_NAME } from './consts';
 import { WordPressContentFormat } from './wordpress-blocks';
+import { ApiType } from './api-types';
 import type { PublishingTemplate } from './publishing-templates';
 import type { PublishHistoryEntry } from './publish-history';
 import type { MultiSiteTargetStore } from './multi-site-targets';
@@ -113,10 +113,25 @@ export const DEFAULT_SETTINGS: WordpressPluginSettings = {
   replaceMediaLinks: true,
 }
 
+interface LegacyWordpressPluginSettings
+  extends Partial<WordpressPluginSettings> {
+  endpoint?: string;
+  apiType?: ApiType;
+  xmlRpcPath?: string;
+  username?: string;
+  password?: string;
+  lastSelectedCategories?: number[];
+}
+
 export async function upgradeSettings(
-  existingSettings: SafeAny,
+  existingSettings: LegacyWordpressPluginSettings,
   to: SettingsVersion
 ): Promise<{ needUpgrade: boolean, settings: WordpressPluginSettings }> {
+  const mergedSettings: WordpressPluginSettings = Object.assign(
+    {},
+    DEFAULT_SETTINGS,
+    existingSettings
+  );
   if (isUndefined(existingSettings.version)) {
     // V1
     if (to === SettingsVersion.V2) {
@@ -135,13 +150,15 @@ export async function upgradeSettings(
       });
       if (existingSettings.endpoint) {
         const endpoint = existingSettings.endpoint;
-        const apiType = existingSettings.apiType;
+        const apiType = existingSettings.apiType ?? ApiType.XML_RPC;
         const xmlRpcPath = existingSettings.xmlRpcPath;
         const username = existingSettings.username;
         const password = existingSettings.password;
         const lastSelectedCategories = existingSettings.lastSelectedCategories;
         const crypto = new PassCrypto();
-        const encryptedPassword = await crypto.encrypt(password);
+        const encryptedPassword = password
+          ? await crypto.encrypt(password)
+          : undefined;
         const profile = {
           id: createProfileId(),
           name: WP_DEFAULT_PROFILE_NAME,
@@ -151,7 +168,7 @@ export async function upgradeSettings(
           saveUsername: !isNil(username),
           savePassword: !isNil(password),
           isDefault: true,
-          lastSelectedCategories: lastSelectedCategories,
+          lastSelectedCategories: lastSelectedCategories ?? [ 1 ],
           username: username,
           encryptedPassword: encryptedPassword
         };
@@ -169,6 +186,6 @@ export async function upgradeSettings(
   }
   return {
     needUpgrade: false,
-    settings: existingSettings
+    settings: mergedSettings
   };
 }

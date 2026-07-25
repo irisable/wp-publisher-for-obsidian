@@ -10,8 +10,7 @@ import { AbstractWordPressClient } from './abstract-wp-client';
 import WordpressPlugin from './main';
 import { PostStatus, PostType, Term } from './wp-api';
 import { RestClient, type RestResponse } from './rest-client';
-import { isArray, isFunction, isNumber, isObject, isString, template } from 'lodash-es';
-import { SafeAny } from './utils';
+import { isFunction, isString, template } from 'lodash-es';
 import { WpProfile } from './wp-profile';
 import { FormItemNameMapper, FormItems, Media } from './types';
 import { formatISO } from 'date-fns';
@@ -41,6 +40,7 @@ import {
   type RemotePostDocument,
   type RemotePostTarget
 } from './remote-post';
+import { isUnknownRecord, requireUnknownRecord } from './unknown-value';
 
 
 interface WpRestEndpoint {
@@ -118,7 +118,7 @@ export class WpRestClient extends AbstractWordPressClient {
       editorialMetadata: this.context.getEditorialMetadata(postParams),
       scheduledDate
     });
-    const resp: SafeAny = await this.client.httpPost(
+    const resp = await this.client.httpPost(
       url,
       payload,
       {
@@ -255,12 +255,12 @@ export class WpRestClient extends AbstractWordPressClient {
         'wp-json/wp-publisher/v1/capabilities',
         { headers }
       );
-      const data = response.json as SafeAny;
+      const data = isUnknownRecord(response.json) ? response.json : {};
       this.supportsCompanionSeo = response.status >= 200 && response.status < 300
-        && data?.rankMathSeo === true;
+        && data.rankMathSeo === true;
       this.supportsCompanionSecondaryTitle = response.status >= 200
         && response.status < 300
-        && data?.secondaryTitle === true;
+        && data.secondaryTitle === true;
     } catch {
       this.supportsCompanionSeo = false;
       this.supportsCompanionSecondaryTitle = false;
@@ -276,16 +276,19 @@ export class WpRestClient extends AbstractWordPressClient {
         'wp-json/wp-publisher/v1/posts/' + encodeURIComponent(postId) + '/seo',
         { headers }
       );
-      if (response.status < 200 || response.status >= 300 || !isObject(response.json)) {
+      if (response.status < 200
+        || response.status >= 300
+        || !isUnknownRecord(response.json)
+      ) {
         return undefined;
       }
       this.supportsCompanionSeo = true;
-      const data = response.json as SafeAny;
+      const data = response.json;
       return {
-        ...(isString(data.focusKeyword) && data.focusKeyword
+        ...(typeof data.focusKeyword === 'string' && data.focusKeyword
           ? { focusKeyword: data.focusKeyword }
           : {}),
-        ...(isString(data.metaDescription) && data.metaDescription
+        ...(typeof data.metaDescription === 'string' && data.metaDescription
           ? { metaDescription: data.metaDescription }
           : {})
       };
@@ -305,11 +308,14 @@ export class WpRestClient extends AbstractWordPressClient {
           + '/secondary-title',
         { headers }
       );
-      if (response.status < 200 || response.status >= 300 || !isObject(response.json)) {
+      if (response.status < 200
+        || response.status >= 300
+        || !isUnknownRecord(response.json)
+      ) {
         return undefined;
       }
-      const data = response.json as SafeAny;
-      if (!isString(data.secondaryTitle)) {
+      const data = response.json;
+      if (typeof data.secondaryTitle !== 'string') {
         return undefined;
       }
       this.supportsCompanionSecondaryTitle = true;
@@ -326,8 +332,8 @@ export class WpRestClient extends AbstractWordPressClient {
     if (response.status >= 200 && response.status < 300) {
       return response.json;
     }
-    const payload = response.json as SafeAny;
-    const message = isString(payload?.message)
+    const payload = isUnknownRecord(response.json) ? response.json : undefined;
+    const message = typeof payload?.message === 'string'
       ? payload.message
       : 'WordPress returned HTTP ' + response.status + '.';
     if (response.status === 401) {
@@ -352,7 +358,7 @@ export class WpRestClient extends AbstractWordPressClient {
   }
 
   async getPostTypes(certificate: WordPressAuthParams): Promise<PostType[]> {
-    const data: SafeAny = await this.client.httpGet(
+    const data = await this.client.httpGet(
       getUrl(this.context.endpoints?.getPostTypes, 'wp-json/wp/v2/types'),
       {
         headers: this.context.getHeaders(certificate)
@@ -386,7 +392,7 @@ export class WpRestClient extends AbstractWordPressClient {
   }
 
   async getTag(name: string, certificate: WordPressAuthParams): Promise<Term> {
-    const termResp: SafeAny = await this.client.httpGet(
+    const termResp = await this.client.httpGet(
       getUrl(this.context.endpoints?.getTag, 'wp-json/wp/v2/tags?number=1&search=<%= name %>', {
         name: encodeURIComponent(name)
       }),
@@ -439,7 +445,7 @@ export class WpRestClient extends AbstractWordPressClient {
       Object.entries(this.context.getMediaUploadMetadata(media.metadata ?? {}))
         .forEach(([ name, value ]) => formItems.append(name, value));
 
-      const response: SafeAny = await this.client.httpPost(
+      const response = await this.client.httpPost(
         getUrl(this.context.endpoints?.uploadFile, 'wp-json/wp/v2/media'),
         formItems,
         {
@@ -455,12 +461,12 @@ export class WpRestClient extends AbstractWordPressClient {
         data: result,
         response
       };
-    } catch (e: SafeAny) {
+    } catch (error) {
       return {
         code: WordPressClientReturnCode.Error,
         error: {
           code: WordPressClientReturnCode.ServerInternalError,
-          message: e.toString()
+          message: error instanceof Error ? error.message : String(error)
         },
         response: undefined
       };
@@ -532,18 +538,21 @@ interface WpRestClientContext {
   remoteEditorialMetadataCapabilities: EditorialMetadataCapabilities;
 
   responseParser: {
-    toWordPressPublishResult: (postParams: WordPressPostParams, response: SafeAny) => WordPressPublishResult;
+    toWordPressPublishResult: (
+      postParams: WordPressPostParams,
+      response: unknown
+    ) => WordPressPublishResult;
     /**
      * Convert response to `WordPressMediaUploadResult`.
      *
      * If there is any error, throw new error directly.
      * @param response response from remote server
      */
-    toWordPressMediaUploadResult: (response: SafeAny) => WordPressMediaUploadResult;
-    toTerms: (response: SafeAny) => Term[];
-    toTerm: (response: SafeAny) => Term;
-    toPostTypes: (response: SafeAny) => PostType[];
-    toRemotePostDocument: (response: SafeAny) => RemotePostDocument;
+    toWordPressMediaUploadResult: (response: unknown) => WordPressMediaUploadResult;
+    toTerms: (response: unknown) => Term[];
+    toTerm: (response: unknown) => Term;
+    toPostTypes: (response: unknown) => PostType[];
+    toRemotePostDocument: (response: unknown) => RemotePostDocument;
   };
 
   endpoints?: Partial<WpRestEndpoint>;
@@ -600,33 +609,38 @@ class WpRestClientCommonContext implements WpRestClientContext {
   }
 
   responseParser = {
-    toWordPressPublishResult: (postParams: WordPressPostParams, response: SafeAny): WordPressPublishResult => {
-      if (response.id) {
+    toWordPressPublishResult: (
+      postParams: WordPressPostParams,
+      response: unknown
+    ): WordPressPublishResult => {
+      const data = requireUnknownRecord(response, 'WordPress REST response');
+      if (isIdentifier(data.id)) {
         return {
-          postId: postParams.postId ?? response.id,
-          categories: postParams.categories ?? response.categories
-        }
+          postId: postParams.postId ?? String(data.id),
+          categories: postParams.categories
+        };
       }
       throw new Error('WordPress REST response did not include a post ID.');
     },
-    toWordPressMediaUploadResult: (response: SafeAny): WordPressMediaUploadResult => {
+    toWordPressMediaUploadResult: (response: unknown): WordPressMediaUploadResult => {
+      const data = requireUnknownRecord(response, 'WordPress media response');
+      if (typeof data.source_url !== 'string') {
+        throw new Error('WordPress media response did not include a source URL.');
+      }
       return {
-        url: response.source_url,
-        id: response.id
+        url: data.source_url,
+        ...(isIdentifier(data.id) ? { id: data.id } : {})
       };
     },
-    toTerms: (response: SafeAny): Term[] => {
-      if (isArray(response)) {
-        return response as Term[];
+    toTerms: (response: unknown): Term[] => {
+      if (Array.isArray(response)) {
+        return response.map(item => parseTerm(item, 'id'));
       }
       return [];
     },
-    toTerm: (response: SafeAny): Term => ({
-      ...response,
-      id: response.id
-    }),
-    toPostTypes: (response: SafeAny): PostType[] => {
-      if (isObject(response)) {
+    toTerm: (response: unknown): Term => parseTerm(response, 'id'),
+    toPostTypes: (response: unknown): PostType[] => {
+      if (isUnknownRecord(response)) {
         return Object.keys(response);
       }
       return [];
@@ -710,50 +724,89 @@ export class WpRestClientLegacyWpComContext implements WpRestClientContext {
   }
 
   responseParser = {
-    toWordPressPublishResult: (postParams: WordPressPostParams, response: SafeAny): WordPressPublishResult => {
-      if (response.ID) {
+    toWordPressPublishResult: (
+      postParams: WordPressPostParams,
+      response: unknown
+    ): WordPressPublishResult => {
+      const data = requireUnknownRecord(response, 'WordPress.com response');
+      if (isIdentifier(data.ID)) {
         return {
-          postId: postParams.postId ?? response.ID,
-          categories: postParams.categories ?? Object.values(response.categories).map((cat: SafeAny) => cat.ID)
+          postId: postParams.postId ?? String(data.ID),
+          categories: postParams.categories
         };
       }
       throw new Error('WordPress.com response did not include a post ID.');
     },
-    toWordPressMediaUploadResult: (response: SafeAny): WordPressMediaUploadResult => {
-      if (response.media.length > 0) {
-        const media = response.media[0];
+    toWordPressMediaUploadResult: (response: unknown): WordPressMediaUploadResult => {
+      const data = requireUnknownRecord(response, 'WordPress.com media response');
+      if (Array.isArray(data.media) && data.media.length > 0) {
+        const media = requireUnknownRecord(
+          data.media[0],
+          'WordPress.com uploaded media'
+        );
+        if (typeof media.link !== 'string') {
+          throw new Error('WordPress.com media response did not include a URL.');
+        }
         return {
           url: media.link,
-          id: media.ID ?? media.id
+          ...(isIdentifier(media.ID)
+            ? { id: media.ID }
+            : isIdentifier(media.id)
+              ? { id: media.id }
+              : {})
         };
-      } else if (response.errors) {
-        throw new Error(response.errors.error.message);
+      }
+      const errors = isUnknownRecord(data.errors) ? data.errors : undefined;
+      const uploadError = isUnknownRecord(errors?.error) ? errors.error : undefined;
+      if (typeof uploadError?.message === 'string') {
+        throw new Error(uploadError.message);
       }
       throw new Error('Upload failed');
     },
-    toTerms: (response: SafeAny): Term[] => {
-      if (isNumber(response.found)) {
-        return response
-          .categories
-          .map((it: Term & { ID: number; }) => ({
-            ...it,
-            id: String(it.ID)
-          }));
+    toTerms: (response: unknown): Term[] => {
+      if (isUnknownRecord(response)
+        && typeof response.found === 'number'
+        && Array.isArray(response.categories)
+      ) {
+        return response.categories.map(item => parseTerm(item, 'ID'));
       }
       return [];
     },
-    toTerm: (response: SafeAny): Term => ({
-      ...response,
-      id: response.ID
-    }),
-    toPostTypes: (response: SafeAny): PostType[] => {
-      if (isNumber(response.found)) {
-        return response
-          .post_types
-          .map((it: { name: string }) => (it.name));
+    toTerm: (response: unknown): Term => parseTerm(response, 'ID'),
+    toPostTypes: (response: unknown): PostType[] => {
+      if (isUnknownRecord(response)
+        && typeof response.found === 'number'
+        && Array.isArray(response.post_types)
+      ) {
+        return response.post_types.flatMap(item => {
+          if (!isUnknownRecord(item) || typeof item.name !== 'string') return [];
+          return [ item.name ];
+        });
       }
       return [];
     },
     toRemotePostDocument: parseWpComRemotePost
+  };
+}
+
+function isIdentifier(value: unknown): value is string | number {
+  return typeof value === 'string' || typeof value === 'number';
+}
+
+function parseTerm(response: unknown, idKey: 'id' | 'ID'): Term {
+  const data = requireUnknownRecord(response, 'WordPress term');
+  const id = data[idKey];
+  if (!isIdentifier(id)) {
+    throw new Error(`WordPress term did not include ${idKey}.`);
+  }
+  const parent = data.parent;
+  return {
+    id: String(id),
+    name: typeof data.name === 'string' ? data.name : '',
+    slug: typeof data.slug === 'string' ? data.slug : '',
+    taxonomy: typeof data.taxonomy === 'string' ? data.taxonomy : '',
+    description: typeof data.description === 'string' ? data.description : '',
+    ...(isIdentifier(parent) ? { parent } : {}),
+    count: typeof data.count === 'number' ? data.count : 0
   };
 }

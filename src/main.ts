@@ -194,8 +194,11 @@ export default class WordpressPlugin extends Plugin {
   }
 
   async loadSettings() {
-    this.#settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-    const { needUpgrade, settings } = await upgradeSettings(this.#settings, SettingsVersion.V2);
+    const loadedSettings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const { needUpgrade, settings } = await upgradeSettings(
+      loadedSettings,
+      SettingsVersion.V2
+    );
     this.#settings = settings;
     this.#settings.publishHistory = normalizePublishHistory(
       this.#settings.publishHistory

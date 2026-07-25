@@ -41,6 +41,13 @@ function optionalText(value: unknown): string | undefined {
   return normalized || undefined;
 }
 
+function optionalScalarText(value: unknown): string | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  return optionalText(value);
+}
+
 function ownText(
   matter: MatterData,
   canonical: string,
@@ -164,9 +171,9 @@ export function readEditorialFrontMatter(
 /** Read current keys first while remaining compatible with existing notes. */
 export function readPublishFrontMatter(matter: MatterData): StoredPublishFrontMatter {
   const metadata: StoredPublishFrontMatter = {
-    profileName: matter.wpProfile ?? matter.profileName,
-    postId: matter.wpPostId ?? matter.postId,
-    postType: matter.wpPostType ?? matter.postType
+    profileName: optionalText(matter.wpProfile) ?? optionalText(matter.profileName),
+    postId: optionalScalarText(matter.wpPostId) ?? optionalScalarText(matter.postId),
+    postType: optionalText(matter.wpPostType) ?? optionalText(matter.postType)
   };
   const lastPublishedAt = optionalText(matter.wpLastPublishedAt);
   const lastPublishAction = publishHistoryAction(matter.wpLastPublishAction);
