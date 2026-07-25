@@ -1,4 +1,4 @@
-name: Release WP Publisher for Obsidian
+name: Release WP Publisher
 
 on:
   push:

@@ -388,9 +388,17 @@ class WpBatchPublishModal extends AbstractModal {
         ? profile.name + ' · ' + this.siteLabel(profile.endpoint)
         : this.t('batchModal_profileUnavailable')
     });
-    const meter = summary.createDiv({ cls: 'wp-publisher-batch-meter' });
-    const fill = meter.createDiv();
-    fill.style.width = this.percentage(this.prepareCompleted, this.prepareTotal);
+    summary.createEl('progress', {
+      cls: 'wp-publisher-batch-meter',
+      attr: {
+        max: '100',
+        value: String(this.percentage(this.prepareCompleted, this.prepareTotal)),
+        'aria-label': this.t('batchModal_preparing', {
+          completed: String(this.prepareCompleted),
+          total: String(this.prepareTotal)
+        })
+      }
+    });
 
     const notice = this.contentEl.createDiv({ cls: 'wp-publisher-batch-freeze-note' });
     notice.createEl('strong', { text: this.t('batchModal_sourceFrozenTitle') });
@@ -498,9 +506,17 @@ class WpBatchPublishModal extends AbstractModal {
         ? this.t('batchModal_progressDesc')
         : this.t('batchModal_resultDesc')
     });
-    const meter = summary.createDiv({ cls: 'wp-publisher-batch-meter' });
-    const fill = meter.createDiv();
-    fill.style.width = this.percentage(this.runCompleted, this.runTotal);
+    summary.createEl('progress', {
+      cls: 'wp-publisher-batch-meter',
+      attr: {
+        max: '100',
+        value: String(this.percentage(this.runCompleted, this.runTotal)),
+        'aria-label': this.t('batchModal_progress', {
+          completed: String(this.runCompleted),
+          total: String(this.runTotal)
+        })
+      }
+    });
 
     const statusStrip = this.contentEl.createDiv({ cls: 'wp-publisher-batch-status-strip' });
     this.renderStateCount(statusStrip, 'is-success', this.t('batchModal_statusSuccessShort'), counts.success);
@@ -872,8 +888,8 @@ class WpBatchPublishModal extends AbstractModal {
     );
   }
 
-  private percentage(completed: number, total: number): string {
-    return total > 0 ? String(Math.min(100, completed / total * 100)) + '%' : '0%';
+  private percentage(completed: number, total: number): number {
+    return total > 0 ? Math.min(100, completed / total * 100) : 0;
   }
 
   private siteLabel(endpoint: string): string {

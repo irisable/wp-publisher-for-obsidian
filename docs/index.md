@@ -1,4 +1,4 @@
-# WP Publisher for Obsidian
+# WP Publisher
 
 WP Publisher turns an Obsidian note into a reviewed WordPress publishing target.
 It publishes native Gutenberg blocks by default and supports explicit,
@@ -11,7 +11,7 @@ canonical implementation and acceptance reference.
 
 ## Configure A WordPress Profile
 
-Open **Settings > WP Publisher for Obsidian > Profiles** and create a profile.
+Open **Settings > WP Publisher > Profiles** and create a profile.
 Each profile has its own endpoint, authentication method, remembered taxonomy,
 media cache, and optional publishing defaults.
 

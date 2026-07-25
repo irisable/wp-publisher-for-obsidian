@@ -497,7 +497,12 @@ export class WpPublishModal extends AbstractModal {
             attr: { title: path.join(' > ') }
           });
           categoryRows.push({ id: String(category.id), row });
-          row.style.paddingInlineStart = String(10 + depth * 18) + 'px';
+          for (let level = 0; level < depth; level += 1) {
+            row.createSpan({
+              cls: 'wp-publisher-category-indent',
+              attr: { 'aria-hidden': 'true' }
+            });
+          }
           const checkbox = row.createEl('input', { type: 'checkbox' });
           checkbox.checked = params.categories.includes(categoryId);
           checkbox.addEventListener('change', () => {

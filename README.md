@@ -1,4 +1,4 @@
-# WP Publisher for Obsidian
+# WP Publisher
 
 **English** | [简体中文](README.zh-CN.md)
 
@@ -45,7 +45,7 @@ The complete implementation map and acceptance history are in
 2. Place all three files in one folder under
    `<Vault>/.obsidian/plugins/`.
 3. Reload Obsidian, open **Settings > Community plugins**, and enable
-   **WP Publisher for Obsidian**.
+   **WP Publisher**.
 
 Disable the legacy `obsidian-wordpress` plugin while using this fork to avoid
 duplicate commands and publishing through the wrong plugin.
@@ -64,7 +64,7 @@ Vault while developing.
 
 ## Connect WordPress
 
-Create a profile in **Settings > WP Publisher for Obsidian > Profiles**.
+Create a profile in **Settings > WP Publisher > Profiles**.
 Supported transports are:
 
 - WordPress REST API with an Application Password, recommended for WordPress

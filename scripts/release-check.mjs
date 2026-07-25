@@ -99,7 +99,7 @@ function checkManifestIdentity() {
   const manifest = readJson('manifest.json');
   const packageJson = readJson('package.json');
 
-  if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(manifest.id)) {
+  if (!/^[a-z]+(?:-[a-z]+)*$/.test(manifest.id)) {
     errors.push(`manifest id is invalid: ${manifest.id}`);
   }
   if (manifest.id.includes('obsidian')) {
@@ -116,6 +116,59 @@ function checkManifestIdentity() {
   }
   if (String(manifest.fundingUrl || '').includes('devbean')) {
     errors.push('manifest fundingUrl still points to the upstream maintainer');
+  }
+  if (!manifest.name || /obsidian/i.test(manifest.name)) {
+    errors.push('manifest name must be present and cannot contain "obsidian"');
+  }
+  if (/\bplugin\b/i.test(manifest.name)) {
+    errors.push('manifest name cannot contain the word "plugin"');
+  }
+  if (!/^[A-Za-z0-9 +()-]+$/.test(manifest.name)) {
+    errors.push('manifest name contains unsupported characters or punctuation');
+  }
+  if (!manifest.description?.trim()) {
+    errors.push('manifest description is required');
+  }
+  if (typeof manifest.isDesktopOnly !== 'boolean') {
+    errors.push('manifest isDesktopOnly must be a boolean');
+  }
+}
+
+function checkCommunityPolicies() {
+  const manifest = readJson('manifest.json');
+  const sourceFiles = listFiles('src', (path) => path.endsWith('.ts'));
+  const mobileOnlyPatterns = [
+    {
+      pattern: /from\s+['"](?:node:|fs['"]|path['"]|electron['"]|child_process['"]|os['"])/,
+      label: 'top-level Node.js or Electron import'
+    },
+    {
+      pattern: /require\(\s*['"](?:node:|fs['"]|path['"]|electron['"]|child_process['"]|os['"])/,
+      label: 'Node.js or Electron require'
+    },
+    { pattern: /\bFileSystemAdapter\b/, label: 'FileSystemAdapter usage' },
+    { pattern: /\bprocess\.platform\b/, label: 'process.platform usage' },
+    { pattern: /\bfetch\s*\(/, label: 'fetch usage instead of requestUrl' },
+    { pattern: /\baxios\./, label: 'axios usage instead of requestUrl' },
+    { pattern: /['"][^'"]*\.obsidian(?:\/|\\)/, label: 'hardcoded .obsidian path' }
+  ];
+
+  for (const path of sourceFiles) {
+    const source = readFileSync(path, 'utf8');
+    const displayPath = relative(root, path);
+    if (/\.style\.[A-Za-z]+\s*=|\.style\.setProperty\s*\(|attr:\s*\{[^}]*\bstyle\s*:/s.test(source)) {
+      errors.push(`inline style assignment remains in ${displayPath}`);
+    }
+    if (/\bhotkeys?\s*:/.test(source)) {
+      errors.push(`default command hotkey remains in ${displayPath}`);
+    }
+    if (!manifest.isDesktopOnly) {
+      for (const { pattern, label } of mobileOnlyPatterns) {
+        if (pattern.test(source)) {
+          errors.push(`${label} conflicts with mobile support in ${displayPath}`);
+        }
+      }
+    }
   }
 }
 
@@ -224,6 +277,7 @@ function checkCommandMap() {
 function checkMarkdownLinks() {
   const markdownFiles = [
     join(root, 'README.md'),
+    join(root, 'README.zh-CN.md'),
     join(root, 'CHANGELOG.md'),
     ...listFiles('docs', (path) => path.endsWith('.md')),
     ...listFiles('wordpress-companion', (path) => path.endsWith('.md'))
@@ -319,6 +373,7 @@ function checkCompanion() {
 
 checkVersions();
 checkManifestIdentity();
+checkCommunityPolicies();
 checkWordPressComOAuth();
 checkReleaseFiles();
 checkTranslations();

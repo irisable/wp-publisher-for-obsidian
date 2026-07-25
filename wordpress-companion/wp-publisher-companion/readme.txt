@@ -6,7 +6,7 @@ Requires PHP: 7.4
 Stable tag: 0.4.1
 License: Apache-2.0
 
-Allows WP Publisher for Obsidian to read or update a small whitelist of SEO, subtitle, and attachment metadata through authenticated REST and XML-RPC calls.
+Allows WP Publisher to read or update a small whitelist of SEO, subtitle, and attachment metadata through authenticated REST and XML-RPC calls.
 
 == Installation ==
 

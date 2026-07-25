@@ -1,4 +1,4 @@
-# WP Publisher for Obsidian
+# WP Publisher
 
 [English](README.md) | **简体中文**
 
@@ -41,7 +41,7 @@ WordPress 到 Obsidian 同步。
    `styles.css`。
 2. 将三个文件放入 `<Vault>/.obsidian/plugins/` 下的同一个文件夹。
 3. 重新加载 Obsidian，打开 **设置 > 第三方插件**，启用
-   **WP Publisher for Obsidian**。
+   **WP Publisher**。
 
 使用本分支时请禁用旧版 `obsidian-wordpress` 插件，以免出现重复命令，
 或误用旧插件执行发布。
@@ -59,7 +59,7 @@ npm run build
 
 ## 连接 WordPress
 
-在 **设置 > WP Publisher for Obsidian > WordPress 账户** 中创建账号配置。
+在 **设置 > WP Publisher > WordPress 账户** 中创建账号配置。
 支持以下连接方式：
 
 - 使用 Application Password 的 WordPress REST API，推荐用于

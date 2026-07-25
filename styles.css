@@ -312,9 +312,14 @@
   gap: 8px;
   min-height: 31px;
   padding-block: 3px;
+  padding-inline-start: 10px;
   padding-inline-end: 8px;
   border-radius: var(--radius-s);
   cursor: pointer;
+}
+
+.wp-publisher-category-indent {
+  flex: 0 0 18px;
 }
 
 .wp-publisher-category-row:hover {
@@ -1581,17 +1586,30 @@ button.wp-publisher-preview-button:not(:disabled):active {
 }
 
 .wp-publisher-batch-meter {
+  display: block;
+  width: 100%;
   overflow: hidden;
   height: 7px;
+  border: 0;
   border-radius: 999px;
+  appearance: none;
+  background: var(--background-modifier-border);
+  color: var(--wp-batch-accent);
+}
+
+.wp-publisher-batch-meter::-webkit-progress-bar {
+  border-radius: inherit;
   background: var(--background-modifier-border);
 }
 
-.wp-publisher-batch-meter > div {
-  height: 100%;
+.wp-publisher-batch-meter::-webkit-progress-value {
   border-radius: inherit;
   background: linear-gradient(90deg, var(--wp-batch-accent), var(--wp-batch-teal));
-  transition: width 220ms ease;
+}
+
+.wp-publisher-batch-meter::-moz-progress-bar {
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--wp-batch-accent), var(--wp-batch-teal));
 }
 
 .wp-publisher-batch-freeze-note {

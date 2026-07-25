@@ -16,4 +16,4 @@ Only the two Rank Math keys, `_secondary_title`, and the attachment title, alt t
 
 ## Install
 
-Upload `wp-publisher-companion.zip` from WordPress **Plugins > Add New > Upload Plugin**, then activate it. Version 0.4.0 or newer is required for Secondary Title synchronization; WP Publisher for Obsidian detects both the companion and the Secondary Title plugin automatically.
+Upload `wp-publisher-companion.zip` from WordPress **Plugins > Add New > Upload Plugin**, then activate it. Version 0.4.0 or newer is required for Secondary Title synchronization; WP Publisher detects both the companion and the Secondary Title plugin automatically.

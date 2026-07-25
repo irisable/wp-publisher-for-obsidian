@@ -27,7 +27,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 * Fork renamed from `obsidian-wordpress` to `wp-publisher-for-obsidian`.
-* Plugin display name updated to `WP Publisher for Obsidian`.
+* Plugin display name updated to `WP Publisher`.
 * Public plugin ID changed to `wp-publisher`; minimum Obsidian version is 1.8.7.
 * Release workflow and local repository metadata updated for the renamed project.
 * Gutenberg Block Editor output is now the default publishing format.

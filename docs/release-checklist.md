@@ -8,6 +8,9 @@ release.
 
 - [ ] The manifest ID is community-plugin compatible and matches the intended
   installation identity.
+- [ ] The display name is unique in the community directory and contains
+  neither `Obsidian` nor `Plugin`; the description distinguishes this project
+  from other WordPress publishing plugins.
 - [ ] Manifest and package authorship belongs to this fork; funding metadata is
   either owned by the maintainer or omitted.
 - [ ] `package.json`, `package-lock.json`, `manifest.json`, and `versions.json`
@@ -29,7 +32,7 @@ npm run version:set -- 1.0.0
 - [ ] Run `npm run release:check`.
 - [ ] Confirm lint, all behavioral tests, TypeScript validation, production
   bundling, documentation links, translation parity, command parity, required
-  assets, and Companion ZIP parity pass.
+  assets, Companion ZIP parity, and static community-policy checks pass.
 - [ ] Run an online dependency audit only after explicitly approving the npm
   registry request and review every production-relevant finding.
 - [ ] Run `php -l` on
@@ -97,5 +100,10 @@ when it is included in release claims. WordPress.com is outside the 1.0 matrix.
   claims.
 - [ ] Install once from the draft release assets rather than the working tree.
 - [ ] Publish the GitHub release only after all applicable checks above pass.
-- [ ] Submit or update the Obsidian community-plugin entry only after the draft
-  release installation succeeds.
+- [ ] Sign in to `community.obsidian.md`, link the maintainer's GitHub account,
+  and submit the repository through **Plugins > New plugin**.
+- [ ] Confirm the default branch HEAD contains the submitted manifest and the
+  matching published GitHub release contains `main.js`, `manifest.json`, and
+  `styles.css`.
+- [ ] Address automated review feedback with an incremented version and a new
+  GitHub release rather than replacing an already reviewed release.
