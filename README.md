@@ -1,5 +1,7 @@
 # WP Publisher for Obsidian
 
+**English** | [简体中文](README.zh-CN.md)
+
 Publish and explicitly synchronize Obsidian notes with WordPress while keeping
 Markdown, front matter, media, and WordPress-native editing under your control.
 
