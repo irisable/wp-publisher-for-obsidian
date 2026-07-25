@@ -22,7 +22,7 @@ release.
 Use this command to synchronize version files without committing or tagging:
 
 ```bash
-npm run version:set -- 1.0.0
+npm run version:set -- 1.2.3
 ```
 
 ## Automated Gates

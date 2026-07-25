@@ -203,7 +203,7 @@ npm test               # behavioral regression suite
 npm run build          # TypeScript validation and production bundle
 npm run check          # lint, tests, and production build
 npm run release:check  # release metadata, docs, translations, and packages
-npm run version:set -- 1.0.0  # synchronize release version files
+npm run version:set -- 1.2.3  # synchronize release version files
 npm run dev            # watch build for local Obsidian testing
 ```
 

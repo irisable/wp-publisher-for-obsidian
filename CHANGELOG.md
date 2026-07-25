@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1] - 2026-07-25
+
+### Added
+
+* A Simplified Chinese README and five regression tests for clean-install
+  defaults and legacy image round-tripping.
+
+### Changed
+
+* Renamed the community display name to `WP Publisher` and expanded its
+  directory description to comply with current Obsidian manifest rules.
+* Replaced JavaScript inline styling with CSS-backed category indentation and
+  a native batch progress element.
+* Added static release checks for community naming, mobile compatibility,
+  default hotkeys, inline styling, and Chinese documentation links.
+
+### Fixed
+
+* Enabled the WordPress ribbon icon by default on fresh installations while
+  preserving an explicit disabled preference.
+* Normalized standalone legacy `![][image-url]` paragraphs pulled from
+  WordPress into standard Markdown images that can be published back.
+* Corrected the WP Publisher Companion author and project metadata.
+
 ## [1.0.0] - 2026-07-25
 
 ### Added
@@ -21,13 +45,13 @@ All notable changes to this project will be documented in this file.
   divergence detection, guarded undo, and reviewed three-way merge.
 * Optional WP Publisher Companion for authenticated Rank Math, Secondary Title,
   and XML-RPC attachment metadata.
-* A 204-test behavioral regression suite covering the completed P0-P3 feature
+* A 199-test behavioral regression suite covering the completed P0-P3 feature
   set.
 
 ### Changed
 
 * Fork renamed from `obsidian-wordpress` to `wp-publisher-for-obsidian`.
-* Plugin display name updated to `WP Publisher`.
+* Plugin display name updated to `WP Publisher for Obsidian`.
 * Public plugin ID changed to `wp-publisher`; minimum Obsidian version is 1.8.7.
 * Release workflow and local repository metadata updated for the renamed project.
 * Gutenberg Block Editor output is now the default publishing format.
@@ -53,11 +77,6 @@ All notable changes to this project will be documented in this file.
   category search behavior visible and deterministic.
 * Prompted for credentials when a profile does not remember them and resolved a
   cancelled login instead of leaving the publish operation waiting forever.
-* Enabled the WordPress ribbon icon by default on fresh Obsidian installations
-  while preserving an explicit disabled preference.
-* Normalized standalone legacy `![][image-url]` paragraphs pulled from WordPress
-  into standard Markdown images that can be published back as image blocks.
-* Corrected the WP Publisher Companion author and project metadata.
 
 ### Security
 

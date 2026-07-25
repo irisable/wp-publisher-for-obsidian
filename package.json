@@ -1,6 +1,6 @@
 {
 	"name": "wp-publisher-for-obsidian",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Publish and explicitly synchronize notes with WordPress using Gutenberg blocks, media reuse, previews, and guarded pull and merge workflows.",
 	"private": true,
 	"main": "main.js",

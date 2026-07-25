@@ -193,7 +193,7 @@ npm test               # 行为回归测试
 npm run build          # TypeScript 验证和生产构建
 npm run check          # lint、测试和生产构建
 npm run release:check  # 发布元数据、文档、翻译和安装包检查
-npm run version:set -- 1.0.0  # 同步发布版本文件
+npm run version:set -- 1.2.3  # 同步发布版本文件
 npm run dev            # 为本地 Obsidian 测试启动监听构建
 ```
 
