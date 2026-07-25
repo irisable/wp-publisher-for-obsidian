@@ -2,6 +2,8 @@
 
 **English** | [简体中文](#简体中文)
 
+## English
+
 Publish and explicitly synchronize Obsidian notes with WordPress while keeping
 Markdown, front matter, media, and WordPress-native editing under your control.
 
@@ -232,7 +234,7 @@ entries and authorship are retained in recognition of the original
 
 ## 简体中文
 
-[English](#wp-publisher) | **简体中文**
+[English](#english) | **简体中文**
 
 将 Obsidian 笔记发布到 WordPress，并通过明确触发的同步流程保持两端一致，
 同时让 Markdown、Front Matter、媒体文件和 WordPress 原生编辑始终处于你的掌控之中。
