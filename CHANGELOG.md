@@ -21,7 +21,7 @@ All notable changes to this project will be documented in this file.
   divergence detection, guarded undo, and reviewed three-way merge.
 * Optional WP Publisher Companion for authenticated Rank Math, Secondary Title,
   and XML-RPC attachment metadata.
-* A 199-test behavioral regression suite covering the completed P0-P3 feature
+* A 204-test behavioral regression suite covering the completed P0-P3 feature
   set.
 
 ### Changed
@@ -53,6 +53,11 @@ All notable changes to this project will be documented in this file.
   category search behavior visible and deterministic.
 * Prompted for credentials when a profile does not remember them and resolved a
   cancelled login instead of leaving the publish operation waiting forever.
+* Enabled the WordPress ribbon icon by default on fresh Obsidian installations
+  while preserving an explicit disabled preference.
+* Normalized standalone legacy `![][image-url]` paragraphs pulled from WordPress
+  into standard Markdown images that can be published back as image blocks.
+* Corrected the WP Publisher Companion author and project metadata.
 
 ### Security
 

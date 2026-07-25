@@ -1,11 +1,13 @@
 <?php
 /**
  * Plugin Name: WP Publisher Companion
+ * Plugin URI: https://github.com/irisable/wp-publisher-for-obsidian
  * Description: Lets WP Publisher for Obsidian read and update allowed metadata over authenticated REST and XML-RPC.
- * Version: 0.4.0
+ * Version: 0.4.1
  * Requires at least: 6.0
  * Requires PHP: 7.4
- * Author: WP Publisher for Obsidian contributors
+ * Author: Irisable
+ * Author URI: https://github.com/irisable
  * License: Apache-2.0
  */
 
@@ -13,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-const WP_PUBLISHER_COMPANION_VERSION = '0.4.0';
+const WP_PUBLISHER_COMPANION_VERSION = '0.4.1';
 
 /**
  * Add the companion methods to WordPress XML-RPC.

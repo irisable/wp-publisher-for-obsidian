@@ -6,7 +6,7 @@ This document is the canonical map of current user-facing behavior, major code e
 
 * P0, P1, P2, and P3 are completed.
 * P3-1 through P3-7 passed staged real-site acceptance on 2026-07-21.
-* The current automated baseline is 199 passing tests plus lint, TypeScript validation, and a production build.
+* The current automated baseline is 204 passing tests plus lint, TypeScript validation, and a production build.
 * There is no formal P4 roadmap or unfinished development task card.
 * The supported-transport release matrix remains a separate compatibility gate, not an open P3 feature.
 
@@ -186,7 +186,7 @@ These exclusions are safety boundaries, not unfinished task cards. Any future ch
 
 ## Release Acceptance
 
-Staged real-site acceptance for P3-1 through P3-7 passed on 2026-07-21, and the automated suite currently passes 199 tests with lint, TypeScript validation, and a production build. `npm run release:check` additionally verifies release identity and versions, documentation links, translation parity, command-map parity, required assets, and the companion package before a tag can produce a draft GitHub release.
+Staged real-site acceptance for P3-1 through P3-7 passed on 2026-07-21, and the automated suite currently passes 204 tests with lint, TypeScript validation, and a production build. `npm run release:check` additionally verifies release identity and versions, documentation links, translation parity, command-map parity, required assets, and the companion package before a tag can produce a draft GitHub release.
 
 The complete Application Password REST and XML-RPC workflow matrix remains the final release-level compatibility gate. miniOrange requires a credential smoke test when included in release claims. Each supported transport should exercise fetch, inspect, push, pull, merge, metadata, media, retry, and recovery behavior.
 

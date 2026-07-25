@@ -1,5 +1,6 @@
 import type MarkdownIt from 'markdown-it';
 import type Token from 'markdown-it/lib/token.mjs';
+import { legacyImageParagraphSource } from './legacy-image-syntax';
 import { splitProtectedWordPressSources } from './wordpress-block-parser';
 
 export const WordPressContentFormat = {
@@ -111,6 +112,31 @@ function hasUnsafeInlineContent(token: Token | undefined): boolean {
   }) ?? false;
 }
 
+function renderImageBlock(
+  context: RenderContext,
+  source: string,
+  imageHtml: string,
+  hasDimensions: boolean
+): string {
+  const imageCaption = context.options.imageCaptions?.[source];
+  const titleHtml = imageCaption?.title
+    ? '<strong>' + context.markdown.utils.escapeHtml(imageCaption.title) + '</strong><br>'
+    : '';
+  const captionHtml = imageCaption
+    ? '<figcaption class="wp-element-caption">'
+      + titleHtml
+      + context.markdown.utils.escapeHtml(imageCaption.caption)
+      + '</figcaption>'
+    : '';
+  const figureHtml = '<figure class="wp-block-image">'
+    + imageHtml
+    + captionHtml
+    + '</figure>';
+  return hasDimensions
+    ? renderCustomHtml(figureHtml)
+    : wrapBlock('image', figureHtml);
+}
+
 function renderParagraph(
   context: RenderContext,
   start: number,
@@ -125,24 +151,20 @@ function renderParagraph(
       context.markdown.options,
       context.env
     );
-    const imageCaption = context.options.imageCaptions?.[image.attrGet('src') ?? ''];
-    const titleHtml = imageCaption?.title
-      ? '<strong>' + context.markdown.utils.escapeHtml(imageCaption.title) + '</strong><br>'
-      : '';
-    const captionHtml = imageCaption
-      ? '<figcaption class="wp-element-caption">'
-        + titleHtml
-        + context.markdown.utils.escapeHtml(imageCaption.caption)
-        + '</figcaption>'
-      : '';
-    const figureHtml = '<figure class="wp-block-image">'
-      + imageHtml
-      + captionHtml
-      + '</figure>';
-    if (image.attrGet('width') || image.attrGet('height')) {
-      return renderCustomHtml(figureHtml);
-    }
-    return wrapBlock('image', figureHtml);
+    return renderImageBlock(
+      context,
+      image.attrGet('src') ?? '',
+      imageHtml,
+      Boolean(image.attrGet('width') || image.attrGet('height'))
+    );
+  }
+
+  const legacySource = legacyImageParagraphSource(inline?.content ?? '');
+  if (legacySource) {
+    const imageHtml = '<img src="'
+      + context.markdown.utils.escapeHtml(legacySource)
+      + '" alt="">';
+    return renderImageBlock(context, legacySource, imageHtml, false);
   }
 
   const html = renderRange(context, start, end + 1);

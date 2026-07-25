@@ -1,9 +1,9 @@
 === WP Publisher Companion ===
-Contributors: wp-publisher-for-obsidian
+Contributors: irisable
 Tags: obsidian, xml-rpc, rank-math, secondary-title
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 0.4.0
+Stable tag: 0.4.1
 License: Apache-2.0
 
 Allows WP Publisher for Obsidian to read or update a small whitelist of SEO, subtitle, and attachment metadata through authenticated REST and XML-RPC calls.
@@ -18,6 +18,9 @@ Allows WP Publisher for Obsidian to read or update a small whitelist of SEO, sub
 The companion uses the same WordPress credentials already configured in Obsidian. Every REST and XML-RPC route checks authentication and edit permissions; no public unauthenticated metadata endpoint is exposed.
 
 == Changelog ==
+
+= 0.4.1 =
+* Corrects the packaged plugin author and project metadata.
 
 = 0.4.0 =
 * Adds authenticated Secondary Title reads, writes, and capability detection.

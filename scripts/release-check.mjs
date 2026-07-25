@@ -268,6 +268,7 @@ function checkMarkdownLinks() {
 }
 
 function checkCompanion() {
+  const manifest = readJson('manifest.json');
   const phpPath =
     'wordpress-companion/wp-publisher-companion/wp-publisher-companion.php';
   const readmePath =
@@ -280,10 +281,14 @@ function checkCompanion() {
   const constant = php.match(
     /WP_PUBLISHER_COMPANION_VERSION\s*=\s*'([^']+)'/
   )?.[1];
+  const author = php.match(/^\s*\* Author:\s*(.+)$/m)?.[1].trim();
   const stable = companionReadme.match(/^Stable tag:\s*([^\s]+)/m)?.[1];
 
   if (!header || header !== constant || header !== stable) {
     errors.push('companion plugin header, constant, and stable tag do not match');
+  }
+  if (author !== manifest.author) {
+    errors.push('companion plugin author does not match manifest.json');
   }
   if (!existsSync(join(root, zipPath))) {
     errors.push(`missing companion package: ${zipPath}`);

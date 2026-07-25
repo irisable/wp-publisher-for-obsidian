@@ -101,7 +101,7 @@ export const DEFAULT_SETTINGS: WordpressPluginSettings = {
   multiSiteTargets: {},
   pullRestoreSnapshots: [],
   syncBaselineCache: { entries: [] },
-  showRibbonIcon: false,
+  showRibbonIcon: true,
   defaultPostStatus: PostStatus.Draft,
   defaultCommentStatus: CommentStatus.Open,
   rememberLastSelectedCategories: true,
@@ -123,7 +123,8 @@ export async function upgradeSettings(
       const newSettings: WordpressPluginSettings = Object.assign({}, DEFAULT_SETTINGS, {
         version: SettingsVersion.V2,
         lang: existingSettings.lang,
-        showRibbonIcon: existingSettings.showRibbonIcon,
+        showRibbonIcon: existingSettings.showRibbonIcon
+          ?? DEFAULT_SETTINGS.showRibbonIcon,
         defaultPostStatus: existingSettings.defaultPostStatus,
         defaultCommentStatus: existingSettings.defaultCommentStatus,
         defaultPostType: 'post',

@@ -192,6 +192,58 @@ test('preserves image alt text, dimensions, title, and caption metadata', () => 
   assert.equal(result.fidelity, 'exact');
 });
 
+test('normalizes legacy empty-alt image paragraphs into publishable images', () => {
+  const url = 'http://192.168.0.158:8088/wp-content/uploads/2026/07/surrender-is-not-passivity-3-2.png';
+  const values = [
+    `![][${url}]`,
+    `!\\[\\]\\[${url}\\]`
+  ];
+
+  values.forEach(value => {
+    const source = [
+      '<!-- wp:paragraph -->',
+      `<p>${value}</p>`,
+      '<!-- /wp:paragraph -->'
+    ].join('\n');
+    const converted = convertWordPressToMarkdown(source, 'block-editor');
+    const restored = renderMarkdownToWordPressBlocks(
+      converted.markdown,
+      new MarkdownIt()
+    );
+    const parsed = parseWordPressBlocks(restored);
+
+    assert.equal(converted.markdown, `![](${url})`);
+    assert.equal(converted.fidelity, 'normalized');
+    assert.equal(parsed.valid, true);
+    assert.deepEqual(
+      parsed.blocks.map(block => block.blockName),
+      [ 'core/image' ]
+    );
+    assert.match(restored, new RegExp(`<img src="${url.replaceAll('.', '\\.')}" alt="">`));
+  });
+});
+
+test('does not reinterpret legacy image-like syntax embedded in prose', () => {
+  const url = 'https://example.com/image.png';
+  const source = [
+    '<!-- wp:paragraph -->',
+    `<p>Keep this literal: ![][${url}]</p>`,
+    '<!-- /wp:paragraph -->'
+  ].join('\n');
+  const converted = convertWordPressToMarkdown(source, 'block-editor');
+  const restored = renderMarkdownToWordPressBlocks(
+    converted.markdown,
+    new MarkdownIt()
+  );
+  const parsed = parseWordPressBlocks(restored);
+
+  assert.match(converted.markdown, /Keep this literal: !\\\[\\\]\\\[https:/);
+  assert.deepEqual(
+    parsed.blocks.map(block => block.blockName),
+    [ 'core/paragraph' ]
+  );
+});
+
 test('normalizes allowlisted custom and classic HTML deterministically', () => {
   const custom = [
     '<!-- wp:html -->',

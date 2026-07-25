@@ -63,6 +63,18 @@ test('renders standalone image alt text without an implicit figcaption', () => {
   assert.doesNotMatch(mixed, /<!-- wp:image -->/);
 });
 
+test('publishes standalone legacy empty-alt image syntax as an image block', () => {
+  const url = 'http://192.168.0.158:8088/wp-content/uploads/2026/07/surrender-is-not-passivity-3-2.png';
+
+  [ `![][${url}]`, `!\\[\\]\\[${url}\\]` ].forEach(markdown => {
+    const output = renderMarkdownToWordPressBlocks(markdown, createParser());
+
+    assert.match(output, /<!-- wp:image -->/);
+    assert.ok(output.includes(`<img src="${url}" alt="">`));
+    assert.doesNotMatch(output, /<!-- wp:paragraph -->/);
+  });
+});
+
 
 test('keeps a descriptive local-image alt out of the visible caption', () => {
   const output = renderMarkdownToWordPressBlocks(

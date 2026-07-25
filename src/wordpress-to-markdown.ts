@@ -10,6 +10,7 @@ import {
   type ParsedWordPressBlock,
   type WordPressSourceRange
 } from './wordpress-block-parser';
+import { legacyImageParagraphSource } from './legacy-image-syntax';
 
 export const WORDPRESS_TO_MARKDOWN_VERSION = '1.0.0';
 
@@ -465,6 +466,19 @@ function renderImageElement(image: HtmlElement): string {
   return `![${escapeMarkdownAlt(alt)}${dimensions}](${markdownDestination(attrs.src ?? '')}${title})`;
 }
 
+function renderLegacyImageParagraph(
+  paragraph: HtmlElement,
+  context: HtmlRenderContext
+): string | undefined {
+  if (paragraph.childNodes.some(node => !isTextNode(node))) return undefined;
+
+  const source = legacyImageParagraphSource(textContent(paragraph));
+  if (!source) return undefined;
+
+  context.normalized = true;
+  return `![](${markdownDestination(source)})`;
+}
+
 function metadataValueSafe(value: string): boolean {
   return !/[\r\n]/.test(value) && !value.includes('%%');
 }
@@ -707,8 +721,10 @@ function renderHtmlNode(
       return childrenInline();
     case 'img':
       return renderImageElement(node);
-    case 'p':
-      return childrenInline() + '\n\n';
+    case 'p': {
+      const legacyImage = renderLegacyImageParagraph(node, context);
+      return (legacyImage ?? childrenInline()) + '\n\n';
+    }
     case 'h1':
     case 'h2':
     case 'h3':
