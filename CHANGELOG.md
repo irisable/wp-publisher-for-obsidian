@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.2] - 2026-07-25
+
+### Changed
+
+* Replaced the legacy dynamic `any` alias with `unknown` and added explicit
+  validation at WordPress REST, WordPress.com, and XML-RPC response boundaries.
+* Added release checks that reject prohibited `no-explicit-any` suppressions
+  and undocumented ESLint directive comments before community submission.
+
+### Fixed
+
+* Resolved the two blocking Obsidian community-review errors reported for
+  `src/utils.ts`.
+
 ## [1.0.1] - 2026-07-25
 
 ### Added
