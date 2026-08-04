@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
+import { importTypescriptModule } from './import-typescript-module.mjs';
+
+const {
   resolveProfilePublishingDefaults,
   resolvePublishingTags,
   selectAvailablePostType
-} from '../src/profile-publishing-defaults.ts';
+} = await importTypescriptModule(
+  new URL('../src/profile-publishing-defaults.ts', import.meta.url)
+);
 
 const globalDefaults = {
   status: 'draft',
@@ -36,13 +40,19 @@ test('normalizes structured profile publishing defaults', () => {
   });
 });
 
-test('uses profile tags only when the note does not define tags', () => {
+test('uses canonical WordPress tags before defaults and legacy tags', () => {
   assert.deepEqual(resolvePublishingTags({}, [ 'profile' ]), [ 'profile' ]);
-  assert.deepEqual(resolvePublishingTags({ tags: 'note, local' }, [ 'profile' ]), [
+  assert.deepEqual(resolvePublishingTags({ wpTags: 'note, local' }, [ 'profile' ]), [
     'note',
     'local'
   ]);
-  assert.deepEqual(resolvePublishingTags({ tags: [] }, [ 'profile' ]), []);
+  assert.deepEqual(resolvePublishingTags({ tags: 'legacy' }, [ 'profile' ]), [
+    'legacy'
+  ]);
+  assert.deepEqual(resolvePublishingTags({
+    wpTags: [],
+    tags: [ 'obsidian-only' ]
+  }, [ 'profile' ]), []);
 });
 
 test('uses only post types reported by the selected WordPress site', () => {

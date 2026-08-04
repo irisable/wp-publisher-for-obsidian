@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
+import { importTypescriptModule } from './import-typescript-module.mjs';
+
+const {
   canonicalizeSyncField,
   classifySyncState,
   createLocalSyncDocument,
@@ -14,8 +16,10 @@ import {
   removeProfileSyncBaselines,
   SyncState,
   upsertSyncBaseline
-} from '../src/sync-baseline.ts';
-import { PullField } from '../src/sync-diff.ts';
+} = await importTypescriptModule(new URL('../src/sync-baseline.ts', import.meta.url));
+const { PullField } = await importTypescriptModule(
+  new URL('../src/sync-diff.ts', import.meta.url)
+);
 
 function remote(overrides = {}) {
   return {
@@ -61,7 +65,8 @@ function documents(overrides = {}) {
     status: 'draft',
     commentStatus: 'open',
     categories: [ 'news' ],
-    tags: [ 'Obsidian' ],
+    wpTags: [ 'Obsidian' ],
+    tags: [ 'vault/topic' ],
     ...overrides
   };
   return {
@@ -95,6 +100,27 @@ test('accepts a direct body that begins with front matter delimiters', () => {
     fields: [ PullField.Body ]
   });
   assert.equal(document.fields.body.value, '---\nvisible body\n---');
+});
+
+test('snapshots WordPress tags without treating Obsidian tags as canonical', () => {
+  const canonical = createLocalSyncDocument({
+    noteRaw: 'Body',
+    matter: { wpTags: [], tags: [ 'vault/topic' ] },
+    fallbackTitle: 'post',
+    fields: [ PullField.Tags ]
+  });
+  assert.deepEqual(canonical.fields.tags, { present: true, value: [] });
+
+  const legacy = createLocalSyncDocument({
+    noteRaw: 'Body',
+    matter: { tags: [ 'legacy-tag' ] },
+    fallbackTitle: 'post',
+    fields: [ PullField.Tags ]
+  });
+  assert.deepEqual(legacy.fields.tags, {
+    present: true,
+    value: [ 'legacy-tag' ]
+  });
 });
 
 test('canonicalizes line endings, one conventional final newline and term ordering', () => {

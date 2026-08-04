@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
+import { importTypescriptModule } from './import-typescript-module.mjs';
+
+const {
   applyResolvedMergeToMatter,
   createThreeWayMergePlan,
   MergeChoice,
@@ -8,11 +10,13 @@ import {
   mergeConflictId,
   resolveThreeWayMergePlan,
   ThreeWayFieldKind
-} from '../src/three-way-merge.ts';
-import {
+} = await importTypescriptModule(new URL('../src/three-way-merge.ts', import.meta.url));
+const {
   createOrUpdateSyncBaseline
-} from '../src/sync-baseline.ts';
-import { PullField } from '../src/sync-diff.ts';
+} = await importTypescriptModule(new URL('../src/sync-baseline.ts', import.meta.url));
+const { PullField } = await importTypescriptModule(
+  new URL('../src/sync-diff.ts', import.meta.url)
+);
 import { protectWordPressSource } from '../src/wordpress-block-parser.ts';
 
 function snapshot(value, present = true) {
@@ -212,4 +216,25 @@ test('writes a merged subtitle to the canonical property and removes its alias',
     custom: true
   });
   assert.deepEqual(applied.changedFields, [ PullField.SecondaryTitle ]);
+});
+
+test('writes merged WordPress tags without changing Obsidian tags', () => {
+  const base = baseline({ tags: [ 'Base tag' ] });
+  const plan = createThreeWayMergePlan({
+    baseline: base,
+    local: document({ tags: [ 'Base tag' ] }),
+    remote: document({ tags: [ 'Remote tag' ] })
+  });
+  const resolved = resolveThreeWayMergePlan(plan, {});
+  const applied = applyResolvedMergeToMatter(
+    { wpTags: [ 'Base tag' ], tags: [ 'vault/topic' ], custom: true },
+    plan,
+    resolved.document
+  );
+  assert.deepEqual(applied.matter, {
+    wpTags: [ 'Remote tag' ],
+    tags: [ 'vault/topic' ],
+    custom: true
+  });
+  assert.deepEqual(applied.changedFields, [ PullField.Tags ]);
 });

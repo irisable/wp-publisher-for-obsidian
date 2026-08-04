@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
+import { importTypescriptModule } from './import-typescript-module.mjs';
+
+const {
   applyPublishingTemplate,
   createPublishingTemplate,
   normalizePublishingTemplate,
   normalizePublishingTemplates
-} from '../src/publishing-templates.ts';
+} = await importTypescriptModule(
+  new URL('../src/publishing-templates.ts', import.meta.url)
+);
 
 const base = {
   status: 'draft',
@@ -77,7 +81,7 @@ test('applies a template over profile defaults', () => {
   );
 });
 
-test('keeps explicit note tags and post type ahead of a template', () => {
+test('keeps explicit WordPress tags and post type ahead of a template', () => {
   const template = normalizePublishingTemplate({
     id: 'feature',
     name: 'Feature',
@@ -88,7 +92,7 @@ test('keeps explicit note tags and post type ahead of a template', () => {
   assert.deepEqual(applyPublishingTemplate(
     base,
     template,
-    { tags: [ 'note', 'local' ] },
+    { wpTags: [ 'note', 'local' ], tags: [ 'vault/topic' ] },
     [ 'post', 'page', 'portfolio' ],
     'portfolio'
   ), {
@@ -98,8 +102,20 @@ test('keeps explicit note tags and post type ahead of a template', () => {
     tags: [ 'note', 'local' ]
   });
   assert.deepEqual(
-    applyPublishingTemplate(base, template, { tags: [] }, [ 'post', 'page' ]).tags,
+    applyPublishingTemplate(base, template, {
+      wpTags: [],
+      tags: [ 'obsidian-only' ]
+    }, [ 'post', 'page' ]).tags,
     []
+  );
+});
+
+test('imports legacy note tags when wpTags has not been established', () => {
+  assert.deepEqual(
+    applyPublishingTemplate(base, undefined, {
+      tags: [ 'legacy-wordpress-tag' ]
+    }, [ 'post', 'page' ]).tags,
+    [ 'legacy-wordpress-tag' ]
   );
 });
 

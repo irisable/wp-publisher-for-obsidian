@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
+import { importTypescriptModule } from './import-typescript-module.mjs';
+
+const {
   applySelectedPullFields,
   buildPullFieldDiffs,
   composePulledNoteRevision,
   createUnifiedLineDiff,
   PullField,
   splitMarkdownNote
-} from '../src/sync-diff.ts';
+} = await importTypescriptModule(new URL('../src/sync-diff.ts', import.meta.url));
 
 function remote(overrides = {}) {
   return {
@@ -53,13 +55,14 @@ test('splits front matter without consuming the note body or CRLF style', () => 
 });
 
 test('builds selectable field diffs with portable category slugs and tag names', () => {
-  const raw = '---\ntitle: Local title\ncategories:\n  - old\ntags:\n  - old-tag\n---\nLocal body\n';
+  const raw = '---\ntitle: Local title\ncategories:\n  - old\nwpTags:\n  - old-tag\ntags:\n  - vault/topic\n---\nLocal body\n';
   const diffs = buildPullFieldDiffs({
     noteRaw: raw,
     matter: {
       title: 'Local title',
       categories: [ 'old' ],
-      tags: [ 'old-tag' ]
+      wpTags: [ 'old-tag' ],
+      tags: [ 'vault/topic' ]
     },
     fallbackTitle: 'Filename',
     remote: remote()
@@ -70,6 +73,30 @@ test('builds selectable field diffs with portable category slugs and tag names',
   assert.deepEqual(tags?.remoteValue, [ 'Obsidian' ]);
   assert.equal(category?.available, true);
   assert.ok(diffs.every(item => item.changed));
+});
+
+test('pulls remote tags into wpTags while preserving Obsidian tags', () => {
+  const matter = {
+    wpTags: [ 'old-tag' ],
+    tags: [ 'vault/topic' ],
+    custom: true
+  };
+  const diffs = buildPullFieldDiffs({
+    noteRaw: 'Body',
+    matter,
+    fallbackTitle: 'Filename',
+    remote: remote()
+  });
+  const next = applySelectedPullFields(
+    matter,
+    diffs,
+    new Set([ PullField.Tags ])
+  );
+  assert.deepEqual(next, {
+    wpTags: [ 'Obsidian' ],
+    tags: [ 'vault/topic' ],
+    custom: true
+  });
 });
 
 test('refuses site-specific category IDs when WordPress omits portable slugs', () => {

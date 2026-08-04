@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import MarkdownIt from 'markdown-it';
 import { MarkdownItImagePluginInstance } from '../src/markdown-it-image-plugin.ts';
+import { markdownItWordPressBreakPlugin } from '../src/markdown-it-wordpress-break-plugin.ts';
 import { markdownItWordPressListPlugin } from '../src/markdown-it-wordpress-list-plugin.ts';
 import { importTypescriptModule } from './import-typescript-module.mjs';
 import {
@@ -21,7 +22,9 @@ const {
 );
 
 function createParser(options = {}) {
-  return new MarkdownIt(options).use(markdownItWordPressListPlugin);
+  return new MarkdownIt(options)
+    .use(markdownItWordPressBreakPlugin)
+    .use(markdownItWordPressListPlugin);
 }
 
 test('renders headings and rich paragraphs as independently editable blocks', () => {
@@ -35,6 +38,27 @@ test('renders headings and rich paragraphs as independently editable blocks', ()
   assert.match(output, /<!-- wp:paragraph -->/);
   assert.ok(output.includes('<p>Text with <strong>bold</strong>, <em>emphasis</em>, and <a href="https://example.com">a link</a>.</p>'));
   assert.doesNotMatch(output, /<!-- wp:html -->/);
+});
+
+test('renders Markdown hard breaks without leading whitespace on the next line', () => {
+  const markdown = 'First line  \nSecond line  \nThird line';
+  const parser = createParser();
+  const blocks = renderMarkdownToWordPressBlocks(markdown, parser);
+
+  assert.ok(blocks.includes('<p>First line<br>Second line<br>Third line</p>'));
+  assert.doesNotMatch(blocks, /<br>\s+Second line|<br>\s+Third line/);
+  assert.equal(
+    renderWordPressPostContent(
+      markdown,
+      parser,
+      WordPressContentFormat.ClassicHtml
+    ),
+    '<p>First line<br>Second line<br>Third line</p>\n'
+  );
+  assert.equal(
+    createParser({ xhtmlOut: true }).render('First line  \nSecond line'),
+    '<p>First line<br />Second line</p>\n'
+  );
 });
 
 test('renders standalone image alt text without an implicit figcaption', () => {

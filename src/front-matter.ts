@@ -7,8 +7,15 @@ export interface PublishFrontMatterMetadata {
   postId: string;
   postType: PostType;
   categories?: readonly string[];
+  tags?: readonly string[];
   lastPublishedAt?: string;
   lastPublishAction?: PublishHistoryAction;
+}
+
+export interface WordPressTagsFrontMatter {
+  present: boolean;
+  tags: string[];
+  source?: 'wpTags' | 'tags';
 }
 
 export interface StoredPublishFrontMatter {
@@ -97,8 +104,25 @@ export function normalizeWordPressTags(value: unknown): string[] {
   return [ ...new Set(tags) ];
 }
 
-export function readTagsFrontMatter(matter: MatterData): string[] {
-  return normalizeWordPressTags(matter.tags);
+/** Prefer the WordPress namespace while supporting unmigrated notes once. */
+export function readWordPressTagsFrontMatter(
+  matter: MatterData
+): WordPressTagsFrontMatter {
+  if (Object.prototype.hasOwnProperty.call(matter, 'wpTags')) {
+    return {
+      present: true,
+      tags: normalizeWordPressTags(matter.wpTags),
+      source: 'wpTags'
+    };
+  }
+  if (Object.prototype.hasOwnProperty.call(matter, 'tags')) {
+    return {
+      present: true,
+      tags: normalizeWordPressTags(matter.tags),
+      source: 'tags'
+    };
+  }
+  return { present: false, tags: [] };
 }
 
 function featuredImageValue(value: unknown): string | undefined {
@@ -184,7 +208,7 @@ export function readPublishFrontMatter(matter: MatterData): StoredPublishFrontMa
 
 /**
  * Update only metadata owned by the publishing workflow.
- * Unrelated note properties, including tags and page categories, are preserved.
+ * Unrelated note properties, including Obsidian tags and page categories, are preserved.
  */
 export function updatePublishFrontMatter(
   matter: MatterData,
@@ -202,6 +226,9 @@ export function updatePublishFrontMatter(
 
   if (metadata.postType === 'post' && metadata.categories) {
     matter.categories = [ ...metadata.categories ];
+  }
+  if (metadata.postType === 'post' && metadata.tags !== undefined) {
+    matter.wpTags = [ ...metadata.tags ];
   }
 
   // These keys were owned by earlier plugin versions and are migrated on publish.

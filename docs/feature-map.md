@@ -149,7 +149,7 @@ Forward publishing uses [src/wordpress-blocks.ts](../src/wordpress-blocks.ts) to
 
 Reverse conversion uses [src/wordpress-block-parser.ts](../src/wordpress-block-parser.ts) and [src/wordpress-to-markdown.ts](../src/wordpress-to-markdown.ts). Supported blocks become loss-aware Markdown, while unknown or structurally lossy source is preserved in inert protected regions instead of disappearing silently.
 
-The explicit synchronization workflow combines normalized remote snapshots, field-level diffs, guarded local transactions, bounded restore data, common baselines, six-state classification, and reviewed three-way merge. It supports title, body, slug, excerpt, status, comments, categories, tags, featured image, Focus Keyword, SEO Description, and Secondary Title without background overwrite.
+The explicit synchronization workflow combines normalized remote snapshots, field-level diffs, guarded local transactions, bounded restore data, common baselines, six-state classification, and reviewed three-way merge. It supports title, body, slug, excerpt, status, comments, categories, WordPress tag names including spaces through `wpTags`, featured image, Focus Keyword, SEO Description, and Secondary Title without background overwrite. Obsidian `tags` and inline `#tags` remain local-only.
 
 ## Documentation
 
@@ -584,7 +584,7 @@ Scope:
 
 * Store optional default post status, comment status, post type, and tags per WordPress profile
 * Inherit global status and comment defaults when a profile does not override them
-* Apply profile tags only when the note has no tags property; an explicit empty property clears defaults
+* Apply note `wpTags` ahead of profile defaults; when absent, import legacy front matter `tags` before falling back to profile tags, while an explicit empty `wpTags` clears defaults
 * Validate the preferred post type against the types returned by the selected site and fall back safely
 * Use the same defaults in both the standard publish modal and the default-profile command
 * Preserve the priority of explicit note properties and one-time publish-modal selections
@@ -594,7 +594,7 @@ Acceptance criteria:
 * Existing profiles without defaults behave exactly as before
 * Different WordPress profiles can start with different publishing values
 * Front matter values override profile defaults
-* An explicit empty tags property produces no tags
+* An explicit empty `wpTags` property produces no WordPress tags
 * Invalid custom post type defaults do not break the publish modal
 * Editing and saving a profile preserves unrelated credentials, category history, and media cache
 
@@ -623,7 +623,7 @@ Scope:
 * Include post status, comment status, post type, and tags as a complete reusable preset
 * Add a visual manager for creating, editing, deleting, validating, and saving templates
 * Let the publish modal load a template without changing content metadata, SEO fields, featured images, or categories
-* Keep explicit note tags and an existing linked post type ahead of template values
+* Keep explicit note `wpTags` and an existing linked post type ahead of template values
 * Validate template post types against the selected WordPress site and fall back safely
 
 Acceptance criteria:
@@ -633,7 +633,7 @@ Acceptance criteria:
 * Selecting a template updates only status, comments, post type, and tags
 * Users can still adjust every loaded value before publishing
 * Selecting no template restores profile defaults without clearing other modal edits
-* Explicit note tags, including an empty list, override template tags
+* Explicit note `wpTags`, including an empty list, override template tags
 * Templates remain usable across multiple WordPress profiles
 
 Further template expansion is tracked under Remaining Candidate Work and is not part of P1.
@@ -1259,7 +1259,7 @@ Scope:
 * Add one Sync with WordPress command that fetches the selected target, computes state, and offers only the safe actions for that state
 * Reuse the established publish pipeline for local-only push and the P3-3 transaction for remote-only pull
 * Route diverged state into the P3-5 merge workflow and explain unknown or remote-missing states without guessing
-* Round-trip supported title, body, slug, excerpt, status, comment status, category slugs, tags, featured media, Focus Keyword, and SEO description
+* Round-trip supported title, body, slug, excerpt, status, comment status, category slugs, WordPress tag names through `wpTags`, featured media, Focus Keyword, and SEO description
 * Extend transport capability reporting and the companion plugin only where protected SEO values require an explicit authenticated read method
 * Restore a local image link when a remote URL matches the selected profile's media cache and the Vault file still exists
 * Keep unmatched remote images as URLs by default; offer an explicit download option with a configured Vault folder, content-hash deduplication, and collision-safe filenames
@@ -1289,7 +1289,7 @@ Implementation snapshot (2026-07-21):
 * One Sync with WordPress command resolves only stable note/profile targets, fetches a fresh snapshot, classifies all six P3 states, displays field capabilities, and exposes only the safe reviewed action for that state
 * Local-only push reuses the existing update pipeline with the exact changed-field set and re-checks the local hash, target link, baseline signature, remote marker, remote field hashes, and state immediately before updating the same post ID
 * Remote-only and unknown states route into the guarded pull review, diverged state routes into the reviewed three-way merge, and in-sync or remote-missing states expose no content write action
-* Baselines, pull, merge, and transport payloads now support title, body, slug, excerpt, status, comment status, category slugs, tags, featured image, Focus Keyword, and SEO Description while preserving canonical front matter aliases and explicit clears
+* Baselines, pull, merge, and transport payloads now support title, body, slug, excerpt, status, comment status, category slugs, WordPress tag names through `wpTags`, featured image, Focus Keyword, and SEO Description while preserving canonical front matter aliases and explicit clears
 * WP Publisher Companion 0.3.0 adds authenticated REST and XML-RPC Rank Math reads with per-post capability checks; missing Rank Math or companion support remains a visible field-level limitation rather than blocking core sync
 * Remote URLs are restored only when the selected profile's content-hash cache resolves to an unchanged Vault file; unmatched URLs remain valid Markdown unless the user explicitly prepares a download folder and selects the affected field
 * Prepared downloads are image-validated and size-bounded, deduplicate by content hash, allocate collision-safe paths, commit only after review, roll back on failure, and are removed by Undo only when their bytes remain unchanged

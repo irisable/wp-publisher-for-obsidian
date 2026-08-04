@@ -1,4 +1,5 @@
 import type { CommentStatus, PostStatus, PostType } from './wp-api';
+import { readWordPressTagsFrontMatter } from './front-matter';
 
 export interface PublishingTemplate {
   id: string;
@@ -114,12 +115,13 @@ export function applyPublishingTemplate(
       tags: normalizeTags(base.tags)
     };
   const preferredPostType = lockedPostType ?? source.postType;
+  const noteTags = readWordPressTagsFrontMatter(matter);
   return {
     status: source.status,
     commentStatus: source.commentStatus,
     postType: selectPostType(preferredPostType, availablePostTypes),
-    tags: Object.prototype.hasOwnProperty.call(matter, 'tags')
-      ? normalizeTags(matter.tags)
+    tags: noteTags.present
+      ? noteTags.tags
       : normalizeTags(source.tags)
   };
 }

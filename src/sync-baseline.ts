@@ -1,4 +1,5 @@
 import type { MatterData } from './types';
+import { readWordPressTagsFrontMatter } from './front-matter';
 import type {
   PullField,
   PullFieldValue,
@@ -264,7 +265,13 @@ export function createLocalSyncDocument(options: {
         document.fields[field] = listSnapshot(options.matter, 'categories');
         break;
       case FIELD.Tags:
-        document.fields[field] = listSnapshot(options.matter, 'tags');
+        {
+          const noteTags = readWordPressTagsFrontMatter(options.matter);
+          document.fields[field] = {
+            present: noteTags.present,
+            value: noteTags.tags
+          };
+        }
         break;
       case FIELD.FeaturedMedia:
         document.fields[field] = featuredImageSnapshot(options.matter);

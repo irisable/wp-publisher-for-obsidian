@@ -32,11 +32,15 @@ test('uses per-profile defaults for a new coordinated publish', () => {
   assert.equal(result.updateStrategy, 'full');
 });
 
-test('applies templates and note tags while retaining an existing target type', () => {
+test('applies templates and note WordPress tags while retaining an existing target type', () => {
   const result = buildCoordinatedPostParams({
     profile,
     globalDefaults,
-    matter: { tags: [ 'note-tag' ], wpPostType: 'wrong-flat-type' },
+    matter: {
+      wpTags: [ 'note-tag' ],
+      tags: [ 'vault/topic' ],
+      wpPostType: 'wrong-flat-type'
+    },
     template: {
       id: 'template',
       name: 'Public',

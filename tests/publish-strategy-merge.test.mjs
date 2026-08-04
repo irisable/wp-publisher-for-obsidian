@@ -6,7 +6,11 @@ import {
   isMergeUpdate,
   PublishUpdateStrategy
 } from '../src/publish-strategy.ts';
-import { PullField } from '../src/sync-diff.ts';
+import { importTypescriptModule } from './import-typescript-module.mjs';
+
+const { PullField } = await importTypescriptModule(
+  new URL('../src/sync-diff.ts', import.meta.url)
+);
 
 function params(overrides = {}) {
   return {

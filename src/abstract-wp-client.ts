@@ -106,6 +106,7 @@ interface PublishExecutionContext {
 
 interface PublishSyncContext {
   localContent: string;
+  publishedTags?: string[];
 }
 
 export abstract class AbstractWordPressClient implements WordPressClient {
@@ -617,9 +618,13 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       if (params.execution.writeBackToNote
         && !contentOnly
         && params.postParams.postType === PostTypeConst.Post
-        && categorySlugs.length > 0
       ) {
-        localMatter.categories = categorySlugs;
+        if (categorySlugs.length > 0) {
+          localMatter.categories = categorySlugs;
+        }
+        if (params.syncContext.publishedTags !== undefined) {
+          localMatter.wpTags = [ ...params.syncContext.publishedTags ];
+        }
       }
       const local = createLocalSyncDocument({
         noteRaw: '',
@@ -809,6 +814,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       await this.prepareEditorialMetadata(postParams, auth, execution.sourceFile);
       if (!mergeUpdate || reviewedFields.has(PullField.Tags)) {
         const tagTerms = await this.getTags(postParams.tags, auth);
+        syncContext.publishedTags = tagTerms.map(term => term.name);
         postParams.tags = tagTerms.map(term => term.id);
       }
     }
@@ -869,6 +875,9 @@ export abstract class AbstractWordPressClient implements WordPressClient {
                 postType: postParams.postType,
                 categories: !contentOnly && categorySlugs.length > 0
                   ? categorySlugs
+                  : undefined,
+                tags: !contentOnly
+                  ? syncContext.publishedTags
                   : undefined,
                 lastPublishedAt: syncMetadata.lastPublishedAt,
                 lastPublishAction: syncMetadata.lastPublishAction

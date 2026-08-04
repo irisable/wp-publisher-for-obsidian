@@ -1,4 +1,5 @@
 import type { MatterData } from './types';
+import { readWordPressTagsFrontMatter } from './front-matter';
 
 export const PullField = {
   Title: 'title',
@@ -334,7 +335,7 @@ export function buildPullFieldDiffs(options: {
     ),
     createField(
       PullField.Tags,
-      stringList(matter.tags),
+      readWordPressTagsFrontMatter(matter).tags,
       tags.values,
       tagsAvailable,
       tagsAvailable || !remote.capabilities.tags ? undefined : 'missing-tag-names',
@@ -416,7 +417,7 @@ export function applySelectedPullFields(
         next.categories = [ ...(diff.remoteValue as string[]) ];
         break;
       case PullField.Tags:
-        next.tags = [ ...(diff.remoteValue as string[]) ];
+        next.wpTags = [ ...(diff.remoteValue as string[]) ];
         break;
       case PullField.FeaturedMedia:
         setOptionalText(next, 'featuredImage', String(diff.remoteValue));

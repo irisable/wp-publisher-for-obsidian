@@ -748,8 +748,9 @@ export function applyResolvedMergeToMatter(
         else delete next.categories;
         break;
       case FIELD.Tags:
-        if (snapshot.present) next.tags = [ ...(snapshot.value as string[]) ];
-        else delete next.tags;
+        next.wpTags = snapshot.present
+          ? [ ...(snapshot.value as string[]) ]
+          : [];
         break;
       case FIELD.FeaturedMedia:
         setOptionalText(next, 'featuredImage', snapshot);

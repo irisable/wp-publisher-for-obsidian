@@ -112,9 +112,9 @@ featuredImage: Images/cover.jpg
 categories:
   - parent-category
   - child-category
-tags:
-  - obsidian
-  - wordpress
+wpTags:
+  - Obsidian 发布
+  - WordPress 工作流
 status: draft
 commentStatus: open
 ---
@@ -122,6 +122,12 @@ commentStatus: open
 
 插件仍兼容读取 `focus_keyword`、`meta_description`、`secondary_title`
 和 `comment_status` 等旧属性名。
+
+`wpTags` 专门保存 WordPress 标签名称，可以包含空格；发布时再解析为所选站点的
+term ID 和 slug，不把站点专属标识存入笔记。Obsidian 自身的 `tags` 属性和正文内
+的 `#标签` 只留在本地，插件不会修改或发布它们。对于旧笔记，仅当 `wpTags`
+不存在时，front matter 的 `tags` 才会作为兼容输入；下次对文章执行完整发布后
+会写入 `wpTags`。如需明确不发布任何 WordPress 标签，请设置 `wpTags: []`。
 
 发布成功后，插件可能维护以下关联和活动记录属性：
 
@@ -132,7 +138,7 @@ commentStatus: open
 - `wpLastPublishAction`
 
 回填操作是非破坏性的：无关属性会被保留，分类仍使用便于阅读和迁移的 slug，
-不会替换为 WordPress ID。
+`wpTags` 使用 WordPress 标签名称，二者都不会替换为站点内部 ID。
 
 ## 媒体元数据
 

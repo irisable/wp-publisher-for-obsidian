@@ -13,6 +13,7 @@ import {
   readEditorialFrontMatter,
   readPublishingControlFrontMatter,
   readPublishFrontMatter,
+  readWordPressTagsFrontMatter,
 } from './front-matter';
 import { buildCategoryTree, getVisibleCategoryIds } from './categories';
 import { PublishTarget, PublishTargetMode } from './publish-target';
@@ -574,7 +575,10 @@ export class WpPublishModal extends AbstractModal {
           if (!contentOnly
             && publishMetadata.postType
             && publishMetadata.postType !== PostTypeConst.Post
-            && (this.matterData.tags || this.matterData.categories)
+            && (
+              readWordPressTagsFrontMatter(this.matterData).tags.length > 0
+              || normalizeWordPressTags(this.matterData.categories).length > 0
+            )
           ) {
             const result = await openConfirmModal({
               message: this.t('publishModal_wrongMatterDataForPage')

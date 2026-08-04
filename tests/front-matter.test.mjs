@@ -6,7 +6,7 @@ import {
   readEditorialFrontMatter,
   readPublishingControlFrontMatter,
   readPublishFrontMatter,
-  readTagsFrontMatter,
+  readWordPressTagsFrontMatter,
   resolveWordPressTitle,
   updatePublishFrontMatter
 } from '../src/front-matter.ts';
@@ -66,6 +66,7 @@ test('preserves categories and tags when publishing a page', () => {
   const matter = {
     categories: [ 'Reference' ],
     tags: [ 'obsidian', 'wordpress' ],
+    wpTags: [ 'existing-wordpress-tag' ],
     customProperty: 'keep me'
   };
 
@@ -77,7 +78,25 @@ test('preserves categories and tags when publishing a page', () => {
 
   assert.deepEqual(matter.categories, [ 'Reference' ]);
   assert.deepEqual(matter.tags, [ 'obsidian', 'wordpress' ]);
+  assert.deepEqual(matter.wpTags, [ 'existing-wordpress-tag' ]);
   assert.equal(matter.customProperty, 'keep me');
+});
+
+test('writes WordPress tags without changing Obsidian tags', () => {
+  const tags = [ 'Published', 'Portable' ];
+  const matter = { tags: [ 'vault/project' ], customProperty: true };
+
+  updatePublishFrontMatter(matter, {
+    profileName: 'Local WordPress',
+    postId: '91',
+    postType: 'post',
+    tags
+  });
+  tags.push('Later mutation');
+
+  assert.deepEqual(matter.tags, [ 'vault/project' ]);
+  assert.deepEqual(matter.wpTags, [ 'Published', 'Portable' ]);
+  assert.equal(matter.customProperty, true);
 });
 
 test('copies published category slugs instead of retaining a mutable reference', () => {
@@ -222,13 +241,37 @@ test('uses the title property for WordPress and the note name only as fallback',
   assert.equal(resolveWordPressTitle({}, 'Note filename'), 'Note filename');
 });
 
-test('normalizes note tags for WordPress and removes duplicates', () => {
-  assert.deepEqual(readTagsFrontMatter({
-    tags: [ '  faith ', 'theology', 'faith', '', 42 ]
-  }), [ 'faith', 'theology' ]);
+test('reads canonical WordPress tags before the legacy Obsidian property', () => {
+  assert.deepEqual(readWordPressTagsFrontMatter({
+    wpTags: [ '  faith ', 'theology', 'faith', '', 42 ],
+    tags: [ 'vault/topic' ]
+  }), {
+    present: true,
+    tags: [ 'faith', 'theology' ],
+    source: 'wpTags'
+  });
+  assert.deepEqual(readWordPressTagsFrontMatter({
+    wpTags: [],
+    tags: [ 'legacy-tag' ]
+  }), {
+    present: true,
+    tags: [],
+    source: 'wpTags'
+  });
+  assert.deepEqual(readWordPressTagsFrontMatter({
+    tags: 'legacy, imported'
+  }), {
+    present: true,
+    tags: [ 'legacy', 'imported' ],
+    source: 'tags'
+  });
+  assert.deepEqual(readWordPressTagsFrontMatter({}), {
+    present: false,
+    tags: []
+  });
   assert.deepEqual(
-    normalizeWordPressTags('faith，theology, responsibility'),
-    [ 'faith', 'theology', 'responsibility' ]
+    normalizeWordPressTags('faith，Catholic social teaching, Church history'),
+    [ 'faith', 'Catholic social teaching', 'Church history' ]
   );
 });
 

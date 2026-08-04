@@ -1,4 +1,5 @@
 import type { CommentStatus, PostStatus, PostType } from './wp-api';
+import { readWordPressTagsFrontMatter } from './front-matter';
 
 function normalizeDefaultTags(value: unknown): string[] {
   const values = Array.isArray(value) ? value : [ value ];
@@ -44,8 +45,9 @@ export function resolvePublishingTags(
   matter: Record<string, unknown>,
   profileTags: readonly string[]
 ): string[] {
-  return Object.prototype.hasOwnProperty.call(matter, 'tags')
-    ? normalizeDefaultTags(matter.tags)
+  const noteTags = readWordPressTagsFrontMatter(matter);
+  return noteTags.present
+    ? noteTags.tags
     : normalizeDefaultTags(profileTags);
 }
 
