@@ -119,12 +119,8 @@ function renderImageBlock(
   hasDimensions: boolean
 ): string {
   const imageCaption = context.options.imageCaptions?.[source];
-  const titleHtml = imageCaption?.title
-    ? '<strong>' + context.markdown.utils.escapeHtml(imageCaption.title) + '</strong><br>'
-    : '';
   const captionHtml = imageCaption
     ? '<figcaption class="wp-element-caption">'
-      + titleHtml
       + context.markdown.utils.escapeHtml(imageCaption.caption)
       + '</figcaption>'
     : '';

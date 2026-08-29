@@ -123,6 +123,100 @@ test('snapshots WordPress tags without treating Obsidian tags as canonical', () 
   });
 });
 
+test('keeps missing and explicit-clear Series ownership distinct in snapshots', () => {
+  const missing = createLocalSyncDocument({
+    noteRaw: 'Body',
+    matter: { custom: true },
+    fallbackTitle: 'post',
+    fields: [ PullField.Series ]
+  });
+  const cleared = createLocalSyncDocument({
+    noteRaw: 'Body',
+    matter: { series: '' },
+    fallbackTitle: 'post',
+    fields: [ PullField.Series ]
+  });
+  const placedRemote = createRemoteSyncDocument({
+    remote: remote({
+      seriesPlacement: {
+        series: 'village-dialectics',
+        seriesSeason: 3,
+        seriesRole: 'article',
+        seriesScope: 'season'
+      },
+      capabilities: {
+        ...remote().capabilities,
+        series: true
+      }
+    }),
+    fields: [ PullField.Series ]
+  });
+
+  assert.deepEqual(missing.fields.series, { present: false, value: '' });
+  assert.deepEqual(cleared.fields.series, {
+    present: true,
+    value: '{"state":"clear"}'
+  });
+  assert.deepEqual(JSON.parse(placedRemote.fields.series.value), {
+    state: 'placement',
+    series: 'village-dialectics',
+    seriesSeason: 3,
+    seriesRole: 'article',
+    seriesScope: 'season'
+  });
+});
+
+test('updates an owned Series baseline to a missing local owner without reporting deletion', () => {
+  const placement = {
+    series: 'village-dialectics',
+    seriesSeason: 3,
+    seriesRole: 'article'
+  };
+  const remoteSeries = createRemoteSyncDocument({
+    remote: remote({
+      seriesPlacement: placement,
+      capabilities: { ...remote().capabilities, series: true }
+    }),
+    fields: [ PullField.Series ]
+  });
+  const ownedLocal = createLocalSyncDocument({
+    noteRaw: 'Body',
+    matter: {
+      series: placement.series,
+      seriesSeason: placement.seriesSeason
+    },
+    fallbackTitle: 'post',
+    fields: [ PullField.Series ]
+  });
+  const existing = createOrUpdateSyncBaseline({
+    identity: identity(),
+    local: ownedLocal,
+    remote: remoteSeries,
+    fields: [ PullField.Series ]
+  });
+  const unownedLocal = createLocalSyncDocument({
+    noteRaw: 'Body',
+    matter: {},
+    fallbackTitle: 'post',
+    fields: [ PullField.Series ]
+  });
+  const updated = createOrUpdateSyncBaseline({
+    existing,
+    identity: identity(),
+    local: unownedLocal,
+    remote: remoteSeries,
+    fields: [ PullField.Series ]
+  });
+
+  assert.equal(updated.fields.series.local.present, false);
+  assert.equal(updated.fields.series.remote.present, true);
+  assert.equal(classifySyncState({
+    baseline: updated,
+    local: unownedLocal,
+    remote: remoteSeries
+  }).state, SyncState.InSync);
+});
+
 test('canonicalizes line endings, one conventional final newline and term ordering', () => {
   assert.deepEqual(
     canonicalizeSyncField(PullField.Body, { present: true, value: 'a\r\n\r\n' }),

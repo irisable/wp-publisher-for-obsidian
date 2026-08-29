@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
+import { importTypescriptModule } from './import-typescript-module.mjs';
+
+const {
   buildCoreRestPostPath,
   createRemotePostSnapshot,
   detectRemotePostSourceFormat,
@@ -9,7 +11,7 @@ import {
   parseWpComRemotePost,
   parseXmlRpcRemotePost,
   validateRemotePostIdentity
-} from '../src/remote-post.ts';
+} = await importTypescriptModule(new URL('../src/remote-post.ts', import.meta.url));
 
 test('normalizes an editable core REST post and discovers embedded terms and media', () => {
   const post = parseCoreRestRemotePost({
@@ -84,6 +86,36 @@ test('distinguishes an available empty remote subtitle from an unsupported field
   });
   assert.equal(post.secondaryTitle, '');
   assert.equal(post.capabilities.secondaryTitle, true);
+});
+
+test('prefers canonical WP Title Layer subtitle and exposes transient Series data', () => {
+  const post = parseCoreRestRemotePost({
+    id: 43,
+    type: 'post',
+    title: { raw: 'Series post' },
+    content: { raw: '<p>Body</p>' },
+    wptl_series: [ 123 ],
+    meta: {
+      wptl_subtitle: '',
+      _secondary_title: 'Legacy shadow must not win',
+      wptl_season_key: 'arrival',
+      wptl_series_role: 'article',
+      wptl_series_scope: '',
+      wptl_sequence_label: '15A'
+    }
+  });
+  assert.equal(post.secondaryTitle, '');
+  assert.equal(post.secondaryTitleOwner, 'wptl');
+  assert.equal(post.capabilities.secondaryTitle, true);
+  assert.equal(post.capabilities.series, true);
+  assert.deepEqual(post.seriesRaw, {
+    termIds: [ '123' ],
+    seasonKey: 'arrival',
+    role: 'article',
+    scope: '',
+    label: '15A'
+  });
+  assert.equal(post.seriesPlacement, undefined);
 });
 
 test('discovers and validates a custom post type REST route', () => {

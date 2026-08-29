@@ -8,14 +8,14 @@ import { AbstractModal } from './abstract-modal';
 export function openLoginModal(
   plugin: WordpressPlugin,
   profile: WpProfile,
-  validateUser: (auth: WordPressAuthParams) => Promise<boolean>,
+  validateUser: (auth: WordPressAuthParams) => Promise<boolean | string>,
 ): Promise<{ auth: WordPressAuthParams, loginModal: Modal } | undefined> {
   return new Promise(resolve => {
     let settled = false;
     const modal = new WpLoginModal(plugin, profile, async (auth, loginModal) => {
       try {
         const validate = await validateUser(auth);
-        if (validate) {
+        if (validate === true) {
           settled = true;
           resolve({
             auth,
@@ -23,7 +23,9 @@ export function openLoginModal(
           });
           modal.close();
         } else {
-          showError(plugin.i18n.t('error_invalidUser'));
+          showError(typeof validate === 'string'
+            ? validate
+            : plugin.i18n.t('error_invalidUser'));
         }
       } catch (error) {
         showError(error);

@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { importTypescriptModule } from './import-typescript-module.mjs';
 
-const { buildCoordinatedPostParams } = await importTypescriptModule(
+const {
+  buildCoordinatedPostParams,
+  requiresSingleSiteSeriesReview
+} = await importTypescriptModule(
   new URL('../src/coordinated-publish.ts', import.meta.url)
 );
 
@@ -63,4 +66,17 @@ test('applies templates and note WordPress tags while retaining an existing targ
   assert.equal(result.postType, 'article');
   assert.deepEqual(result.tags, [ 'note-tag' ]);
   assert.equal(result.updateStrategy, 'content-only');
+});
+
+test('requires one-site review before publishing a seasoned Series to multiple sites', () => {
+  assert.equal(requiresSingleSiteSeriesReview({
+    series: 'incarnational-communication',
+    seriesSeason: 2
+  }), true);
+  assert.equal(requiresSingleSiteSeriesReview({
+    series: 'flat-series'
+  }), false);
+  assert.equal(requiresSingleSiteSeriesReview({
+    series: ''
+  }), false);
 });

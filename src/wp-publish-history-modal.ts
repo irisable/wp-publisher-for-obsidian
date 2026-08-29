@@ -105,7 +105,9 @@ class WpPublishHistoryModal extends AbstractModal {
       cls: 'wp-publisher-history-card '
         + (entry.outcome === PublishHistoryOutcome.Success
           ? 'is-success'
-          : 'is-failure')
+          : entry.outcome === PublishHistoryOutcome.Partial
+            ? 'is-partial'
+            : 'is-failure')
     });
     const header = card.createDiv({ cls: 'wp-publisher-history-card-header' });
     const titleWrap = header.createDiv({ cls: 'wp-publisher-history-card-title' });
@@ -264,8 +266,11 @@ class WpPublishHistoryModal extends AbstractModal {
   }
 
   private outcomeLabel(outcome: PublishHistoryOutcome): string {
-    return this.t(outcome === PublishHistoryOutcome.Success
-      ? 'historyModal_outcomeSuccess'
+    if (outcome === PublishHistoryOutcome.Success) {
+      return this.t('historyModal_outcomeSuccess');
+    }
+    return this.t(outcome === PublishHistoryOutcome.Partial
+      ? 'historyModal_outcomePartial'
       : 'historyModal_outcomeFailure');
   }
 

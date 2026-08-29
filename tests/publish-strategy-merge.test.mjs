@@ -100,6 +100,38 @@ test('merge payloads include only reviewed featured media and SEO fields', () =>
   }), { post_thumbnail: 0 });
 });
 
+test('REST merge keeps the WP Title Layer Series group atomic', () => {
+  const postParams = params({
+    updateFields: [ PullField.Series, PullField.SecondaryTitle ]
+  });
+  const payload = buildRestPublishPayload({
+    title: 'Changed title',
+    content: '<p>Changed body</p>',
+    postParams,
+    editorialMetadata: {
+      wptl_series: [ 123 ],
+      meta: {
+        wptl_subtitle: 'Canonical subtitle',
+        wptl_season_key: 'arrival',
+        wptl_series_role: 'article',
+        wptl_series_scope: '',
+        wptl_sequence_label: '15A',
+        unrelated_private_key: 'never send'
+      }
+    }
+  });
+  assert.deepEqual(payload, {
+    wptl_series: [ 123 ],
+    meta: {
+      wptl_subtitle: 'Canonical subtitle',
+      wptl_season_key: 'arrival',
+      wptl_series_role: 'article',
+      wptl_series_scope: '',
+      wptl_sequence_label: '15A'
+    }
+  });
+});
+
 test('XML-RPC merge payload excludes unsupported and unreviewed metadata', () => {
   const postParams = params({
     commentStatus: 'closed',

@@ -88,7 +88,7 @@ test('renders standalone image alt text without an implicit figcaption', () => {
 });
 
 test('publishes standalone legacy empty-alt image syntax as an image block', () => {
-  const url = 'http://192.168.0.158:8088/wp-content/uploads/2026/07/surrender-is-not-passivity-3-2.png';
+  const url = 'https://wordpress.test/wp-content/uploads/2026/07/example-image.png';
 
   [ `![][${url}]`, `!\\[\\]\\[${url}\\]` ].forEach(markdown => {
     const output = renderMarkdownToWordPressBlocks(markdown, createParser());
@@ -110,7 +110,7 @@ test('keeps a descriptive local-image alt out of the visible caption', () => {
   assert.doesNotMatch(output, /<figcaption/);
 });
 
-test('renders media titles and captions as editable image figcaptions', () => {
+test('renders only media captions as editable image figcaptions', () => {
   const image = renderMarkdownToWordPressBlocks(
     '![Cover](https://example.com/cover.jpg)',
     createParser(),
@@ -125,9 +125,9 @@ test('renders media titles and captions as editable image figcaptions', () => {
   );
   assert.match(image, /<!-- wp:image -->/);
   assert.ok(image.includes(
-    '<figcaption class="wp-element-caption"><strong>Cover &lt;title&gt;</strong><br>Caption &amp; context</figcaption>'
+    '<figcaption class="wp-element-caption">Caption &amp; context</figcaption>'
   ));
-  assert.doesNotMatch(image, /<figcaption[^>]*>Cover<\/figcaption>/);
+  assert.doesNotMatch(image, /Cover &lt;title&gt;|<figcaption[^>]*>Cover<\/figcaption>/);
   assert.doesNotMatch(image, /<!-- wp:html -->/);
 });
 

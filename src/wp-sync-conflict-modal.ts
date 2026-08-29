@@ -88,6 +88,7 @@ import {
   PublishHistoryOutcome
 } from './publish-history';
 import { openWithBrowser, showError } from './utils';
+import { describeSerializedSeriesIntentForUi } from './series';
 
 type MergePhase =
   | 'resolving'
@@ -464,6 +465,7 @@ class WpSyncConflictModal extends AbstractModal {
         focusKeyword: snapshot.focusKeyword,
         metaDescription: snapshot.metaDescription,
         secondaryTitle: snapshot.secondaryTitle,
+        seriesPlacement: snapshot.seriesPlacement,
         capabilities: snapshot.capabilities
       }
     });
@@ -826,11 +828,17 @@ class WpSyncConflictModal extends AbstractModal {
     const current = this.resolutions[id];
     const controls = parent.createDiv({ cls: 'wp-publisher-merge-resolution' });
     const choices = controls.createDiv({ cls: 'wp-publisher-merge-choices' });
-    [
+    const choiceItems: Array<{ choice: MergeChoice, label: string }> = [
       { choice: MergeChoice.Local, label: this.t('mergeModal_keepObsidian') },
-      { choice: MergeChoice.Remote, label: this.t('mergeModal_useWordPress') },
-      { choice: MergeChoice.Edited, label: this.t('mergeModal_useEdited') }
-    ].forEach(item => {
+      { choice: MergeChoice.Remote, label: this.t('mergeModal_useWordPress') }
+    ];
+    if (field !== PullField.Series) {
+      choiceItems.push({
+        choice: MergeChoice.Edited,
+        label: this.t('mergeModal_useEdited')
+      });
+    }
+    choiceItems.forEach(item => {
       const button = choices.createEl('button', {
         cls: current?.choice === item.choice ? 'is-selected' : '',
         text: item.label,
@@ -1489,7 +1497,13 @@ class WpSyncConflictModal extends AbstractModal {
   }
 
   private displayValue(value: PullFieldValue): string {
-    return Array.isArray(value) ? value.join(', ') : value;
+    if (Array.isArray(value)) return value.join(', ');
+    return value.startsWith('{"state"')
+      ? describeSerializedSeriesIntentForUi(
+        value,
+        (key, vars) => this.t(key, vars)
+      )
+      : value;
   }
 
   private fieldLabel(field: PullField): string {
@@ -1516,6 +1530,8 @@ class WpSyncConflictModal extends AbstractModal {
         return this.t('pullModal_fieldFocusKeyword');
       case PullField.MetaDescription:
         return this.t('pullModal_fieldMetaDescription');
+      case PullField.Series:
+        return this.t('pullModal_fieldSeries');
       default:
         return this.t('pullModal_fieldSecondaryTitle');
     }

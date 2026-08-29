@@ -17,6 +17,9 @@ const {
 const { PullField } = await importTypescriptModule(
   new URL('../src/sync-diff.ts', import.meta.url)
 );
+const { serializeSeriesIntent } = await importTypescriptModule(
+  new URL('../src/series.ts', import.meta.url)
+);
 import { protectWordPressSource } from '../src/wordpress-block-parser.ts';
 
 function snapshot(value, present = true) {
@@ -198,7 +201,7 @@ test('updates only resolved metadata that differs from the local revision', () =
   assert.deepEqual(applied.changedFields, [ PullField.Excerpt ]);
 });
 
-test('writes a merged subtitle to the canonical property and removes its alias', () => {
+test('writes a merged subtitle without deleting an existing compatible property', () => {
   const base = baseline({ secondaryTitle: 'Base subtitle' });
   const plan = createThreeWayMergePlan({
     baseline: base,
@@ -212,10 +215,23 @@ test('writes a merged subtitle to the canonical property and removes its alias',
     resolved.document
   );
   assert.deepEqual(applied.matter, {
-    secondaryTitle: 'Remote subtitle',
+    secondary_title: 'Remote subtitle',
     custom: true
   });
   assert.deepEqual(applied.changedFields, [ PullField.SecondaryTitle ]);
+
+  const clearPlan = createThreeWayMergePlan({
+    baseline: base,
+    local: document({ secondaryTitle: 'Base subtitle' }),
+    remote: document({ secondaryTitle: '' })
+  });
+  const clearResolved = resolveThreeWayMergePlan(clearPlan, {});
+  const cleared = applyResolvedMergeToMatter(
+    { secondaryTitle: 'Base subtitle' },
+    clearPlan,
+    clearResolved.document
+  );
+  assert.deepEqual(cleared.matter, { secondaryTitle: '' });
 });
 
 test('writes merged WordPress tags without changing Obsidian tags', () => {
@@ -237,4 +253,54 @@ test('writes merged WordPress tags without changing Obsidian tags', () => {
     custom: true
   });
   assert.deepEqual(applied.changedFields, [ PullField.Tags ]);
+});
+
+test('resolves Series conflicts as one field and replaces stale placement metadata', () => {
+  const series = (slug, season, label) => serializeSeriesIntent({
+    kind: 'placement',
+    placement: {
+      series: slug,
+      seriesSeason: season,
+      seriesRole: 'article',
+      seriesScope: 'season',
+      seriesLabel: label
+    }
+  });
+  const base = baseline({ series: series('base-series', 1, 'Base') });
+  const plan = createThreeWayMergePlan({
+    baseline: base,
+    local: document({ series: series('local-series', 2, 'Local') }),
+    remote: document({ series: series('remote-series', 3, 'Remote') })
+  });
+  const conflictId = mergeConflictId(PullField.Series);
+  assert.equal(plan.fields[0].kind, ThreeWayFieldKind.Conflict);
+  assert.equal(plan.conflictCount, 1);
+  assert.deepEqual(
+    resolveThreeWayMergePlan(plan, {}).unresolvedConflictIds,
+    [ conflictId ]
+  );
+
+  const resolved = resolveThreeWayMergePlan(plan, {
+    [conflictId]: { choice: MergeChoice.Remote }
+  });
+  const applied = applyResolvedMergeToMatter(
+    {
+      series: 'local-series',
+      seriesSeason: 2,
+      seriesRole: 'appendix',
+      seriesScope: 'series',
+      seriesLabel: 'Stale',
+      custom: true
+    },
+    plan,
+    resolved.document
+  );
+  assert.deepEqual(applied.matter, {
+    series: 'remote-series',
+    seriesSeason: 3,
+    seriesScope: 'season',
+    seriesLabel: 'Remote',
+    custom: true
+  });
+  assert.deepEqual(applied.changedFields, [ PullField.Series ]);
 });

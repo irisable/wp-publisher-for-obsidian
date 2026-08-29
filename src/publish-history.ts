@@ -16,6 +16,7 @@ export type PublishHistoryAction = typeof PublishHistoryAction[
 
 export const PublishHistoryOutcome = {
   Success: 'success',
+  Partial: 'partial',
   Failure: 'failure'
 } as const;
 

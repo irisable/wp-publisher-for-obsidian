@@ -67,6 +67,22 @@ test('normalizes stored entries without retaining unknown or sensitive fields', 
   assert.equal('password' in normalized[0], false);
 });
 
+test('preserves a partial publish outcome and its post target', () => {
+  const partial = entry({
+    outcome: PublishHistoryOutcome.Partial,
+    warningCount: 1,
+    message: 'expected subtitle "Draft"; WordPress returned "Old"'
+  });
+  const normalized = normalizePublishHistory([ partial ]);
+  assert.equal(normalized[0].outcome, 'partial');
+  assert.equal(normalized[0].postId, '42');
+  assert.equal(normalized[0].warningCount, 1);
+  assert.equal(
+    normalized[0].message,
+    'expected subtitle "Draft"; WordPress returned "Old"'
+  );
+});
+
 test('keeps newest unique entries within the bounded history limit', () => {
   let history = [];
   for (let index = 0; index < PUBLISH_HISTORY_LIMIT + 5; index += 1) {

@@ -58,6 +58,7 @@ import {
   type PublishHistoryOutcome as PublishHistoryOutcomeValue
 } from './publish-history';
 import { showError } from './utils';
+import { describeSerializedSeriesIntentForUi } from './series';
 import {
   classifySyncState,
   createLocalSyncDocument,
@@ -426,6 +427,7 @@ class WpPullPreviewModal extends AbstractModal {
           focusKeyword: result.data.focusKeyword,
           metaDescription: result.data.metaDescription,
           secondaryTitle: result.data.secondaryTitle,
+          seriesPlacement: result.data.seriesPlacement,
           capabilities: result.data.capabilities
         }
       });
@@ -473,6 +475,7 @@ class WpPullPreviewModal extends AbstractModal {
         focusKeyword: this.snapshot.focusKeyword,
         metaDescription: this.snapshot.metaDescription,
         secondaryTitle: this.snapshot.secondaryTitle,
+        seriesPlacement: this.snapshot.seriesPlacement,
         capabilities: this.snapshot.capabilities
       }
     });
@@ -587,6 +590,7 @@ class WpPullPreviewModal extends AbstractModal {
           focusKeyword: this.snapshot.focusKeyword,
           metaDescription: this.snapshot.metaDescription,
           secondaryTitle: this.snapshot.secondaryTitle,
+          seriesPlacement: this.snapshot.seriesPlacement,
           capabilities: this.snapshot.capabilities
         }
       }),
@@ -916,7 +920,14 @@ class WpPullPreviewModal extends AbstractModal {
   private renderValue(parent: HTMLElement, label: string, value: PullFieldValue): void {
     const item = parent.createDiv();
     item.createSpan({ text: label });
-    const display = Array.isArray(value) ? value.join(', ') : value;
+    const display = Array.isArray(value)
+      ? value.join(', ')
+      : value.startsWith('{"state"')
+        ? describeSerializedSeriesIntentForUi(
+          value,
+          (key, vars) => this.t(key, vars)
+        )
+        : value;
     item.createEl('code', {
       text: display || this.t('pullModal_emptyValue')
     });
@@ -1196,6 +1207,7 @@ class WpPullPreviewModal extends AbstractModal {
           focusKeyword: this.snapshot.focusKeyword,
           metaDescription: this.snapshot.metaDescription,
           secondaryTitle: this.snapshot.secondaryTitle,
+          seriesPlacement: this.snapshot.seriesPlacement,
           capabilities: this.snapshot.capabilities
         }
       });
@@ -1529,6 +1541,8 @@ class WpPullPreviewModal extends AbstractModal {
         return this.t('pullModal_fieldFocusKeyword');
       case PullField.MetaDescription:
         return this.t('pullModal_fieldMetaDescription');
+      case PullField.Series:
+        return this.t('pullModal_fieldSeries');
       default:
         return this.t('pullModal_fieldSecondaryTitle');
     }

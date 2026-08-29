@@ -8,6 +8,10 @@ import type {
   SyncDocument,
   SyncFieldSnapshot
 } from './sync-baseline';
+import {
+  applySeriesIntentToMatter,
+  deserializeSeriesIntent
+} from './series';
 
 const FIELD = {
   Title: 'title',
@@ -21,12 +25,14 @@ const FIELD = {
   FeaturedMedia: 'featuredMedia',
   FocusKeyword: 'focusKeyword',
   MetaDescription: 'metaDescription',
-  SecondaryTitle: 'secondaryTitle'
+  SecondaryTitle: 'secondaryTitle',
+  Series: 'series'
 } as const;
 
 const FIELD_ORDER: PullField[] = [
   FIELD.Title,
   FIELD.SecondaryTitle,
+  FIELD.Series,
   FIELD.Body,
   FIELD.Slug,
   FIELD.Excerpt,
@@ -712,6 +718,23 @@ function setOptionalText(
   }
 }
 
+function setCompatibleOptionalText(
+  matter: MatterData,
+  preferredKey: string,
+  snapshot: SyncFieldSnapshot,
+  aliases: readonly string[]
+): void {
+  const key = [ preferredKey, ...aliases ].find(candidate => (
+    Object.prototype.hasOwnProperty.call(matter, candidate)
+  )) ?? preferredKey;
+  const value = String(snapshot.value);
+  if (!snapshot.present) {
+    delete matter[key];
+  } else {
+    matter[key] = value;
+  }
+}
+
 /** Apply only results that differ from the reviewed local snapshot. */
 export function applyResolvedMergeToMatter(
   matter: MatterData,
@@ -762,7 +785,20 @@ export function applyResolvedMergeToMatter(
         setOptionalText(next, 'metaDescription', snapshot, [ 'meta_description' ]);
         break;
       case FIELD.SecondaryTitle:
-        setOptionalText(next, 'secondaryTitle', snapshot, [ 'secondary_title' ]);
+        setCompatibleOptionalText(
+          next,
+          'subtitle',
+          snapshot,
+          [ 'secondaryTitle', 'secondary_title' ]
+        );
+        break;
+      case FIELD.Series:
+        applySeriesIntentToMatter(
+          next,
+          snapshot.present
+            ? deserializeSeriesIntent(String(snapshot.value))
+            : undefined
+        );
         break;
     }
   });

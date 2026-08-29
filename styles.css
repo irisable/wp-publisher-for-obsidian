@@ -101,6 +101,10 @@
   background: #39789e;
 }
 
+.wp-publisher-series-card::before {
+  background: #7a6532;
+}
+
 .wp-publisher-card-header {
   padding: 16px 18px 13px 20px;
   border-bottom: 1px solid var(--background-modifier-border);
@@ -328,6 +332,100 @@
 
 .wp-publisher-category-row.is-hidden {
   display: none;
+}
+
+.wp-publisher-series-card .wp-publisher-card-body {
+  padding-bottom: 14px;
+}
+
+.wp-publisher-series-current {
+  margin: 10px 0;
+  padding: 9px 11px;
+  border-inline-start: 3px solid #7a6532;
+  border-radius: 0 var(--radius-s) var(--radius-s) 0;
+  color: var(--text-normal);
+  background: color-mix(in srgb, #7a6532 9%, var(--background-secondary));
+  font-size: var(--font-ui-smaller);
+  line-height: 1.45;
+}
+
+.wp-publisher-series-selector {
+  display: grid;
+  gap: 9px;
+  margin: 10px 0 2px;
+}
+
+.wp-publisher-series-list {
+  display: grid;
+  gap: 3px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+}
+
+.wp-publisher-series-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  padding: 5px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  color: var(--text-normal);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.wp-publisher-series-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.wp-publisher-series-row:has(input:checked) {
+  border-color: color-mix(in srgb, #7a6532 48%, var(--background-modifier-border));
+  background: color-mix(in srgb, #7a6532 13%, var(--background-primary));
+  font-weight: var(--font-semibold);
+}
+
+.wp-publisher-series-row:has(input:disabled) {
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
+.wp-publisher-series-row input[type='radio'] {
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: #7a6532;
+}
+
+.wp-publisher-series-row.is-hidden {
+  display: none;
+}
+
+.wp-publisher-series-error,
+.wp-publisher-series-note {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-s);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.45;
+}
+
+.wp-publisher-series-error {
+  border: 1px solid color-mix(in srgb, var(--text-error) 34%, transparent);
+  color: var(--text-error);
+  background: color-mix(in srgb, var(--text-error) 9%, transparent);
+}
+
+.wp-publisher-series-error p {
+  margin: 4px 0 0;
+}
+
+.wp-publisher-series-note {
+  color: var(--text-warning);
+  background: color-mix(in srgb, var(--text-warning) 10%, transparent);
 }
 
 .wp-publisher-category-row input {
@@ -817,6 +915,10 @@ button.wp-publisher-preview-button:not(:disabled):active {
   background: var(--text-error);
 }
 
+.wp-publisher-history-card.is-partial::before {
+  background: var(--text-warning);
+}
+
 .wp-publisher-history-card-header {
   display: flex;
   align-items: flex-start;
@@ -851,6 +953,11 @@ button.wp-publisher-preview-button:not(:disabled):active {
 .is-failure .wp-publisher-history-outcome {
   color: var(--text-error);
   background: color-mix(in srgb, var(--text-error) 11%, transparent);
+}
+
+.is-partial .wp-publisher-history-outcome {
+  color: var(--text-warning);
+  background: color-mix(in srgb, var(--text-warning) 12%, transparent);
 }
 
 .wp-publisher-history-card time,
@@ -1115,6 +1222,10 @@ button.wp-publisher-preview-button:not(:disabled):active {
   border-left: 4px solid var(--text-success);
 }
 
+.wp-publisher-multi-site-card.is-partial {
+  border-left: 4px solid var(--text-warning);
+}
+
 .wp-publisher-multi-site-card.is-failure {
   border-left: 4px solid var(--text-error);
 }
@@ -1226,6 +1337,10 @@ button.wp-publisher-preview-button:not(:disabled):active {
   color: var(--text-success);
 }
 
+.is-partial .wp-publisher-multi-site-status {
+  color: var(--text-warning);
+}
+
 .is-failure .wp-publisher-multi-site-status {
   color: var(--text-error);
 }
@@ -1234,6 +1349,17 @@ button.wp-publisher-preview-button:not(:disabled):active {
   margin-left: 8px;
   color: var(--text-warning);
   font-size: var(--font-ui-smaller);
+}
+
+.wp-publisher-multi-site-warning-detail {
+  margin-top: 9px;
+  padding: 8px 10px;
+  border-radius: var(--radius-s);
+  color: var(--text-warning);
+  background: color-mix(in srgb, var(--text-warning) 9%, transparent);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .wp-publisher-multi-site-error {
@@ -1659,6 +1785,10 @@ button.wp-publisher-preview-button:not(:disabled):active {
   border-left: 4px solid var(--text-success);
 }
 
+.wp-publisher-batch-result-card.is-partial {
+  border-left: 4px solid var(--text-warning);
+}
+
 .wp-publisher-batch-result-card.is-skipped {
   border-left: 4px solid var(--text-warning);
 }
@@ -1715,9 +1845,20 @@ button.wp-publisher-preview-button:not(:disabled):active {
   overflow-wrap: anywhere;
 }
 
+.wp-publisher-batch-warning-detail {
+  grid-column: 2 / -1;
+  padding: 7px 9px;
+  border-radius: var(--radius-s);
+  color: var(--text-warning);
+  background: color-mix(in srgb, var(--text-warning) 9%, transparent);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .wp-publisher-batch-status-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   margin-top: 11px;
 }
@@ -1741,6 +1882,10 @@ button.wp-publisher-preview-button:not(:disabled):active {
 
 .wp-publisher-batch-state-count.is-success strong {
   color: var(--text-success);
+}
+
+.wp-publisher-batch-state-count.is-partial strong {
+  color: var(--text-warning);
 }
 
 .wp-publisher-batch-state-count.is-failure strong {
@@ -1772,6 +1917,10 @@ button.wp-publisher-preview-button:not(:disabled):active {
 
 .is-success .wp-publisher-batch-result-state strong {
   color: var(--text-success);
+}
+
+.is-partial .wp-publisher-batch-result-state strong {
+  color: var(--text-warning);
 }
 
 .is-failure .wp-publisher-batch-result-state strong {
@@ -1865,7 +2014,8 @@ button.wp-publisher-preview-button:not(:disabled):active {
   .wp-publisher-batch-strategy,
   .wp-publisher-batch-result-state,
   .wp-publisher-batch-actions,
-  .wp-publisher-batch-error {
+  .wp-publisher-batch-error,
+  .wp-publisher-batch-warning-detail {
     grid-column: 2;
   }
 

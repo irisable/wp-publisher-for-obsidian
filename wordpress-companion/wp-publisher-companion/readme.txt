@@ -3,7 +3,7 @@ Contributors: irisable
 Tags: obsidian, xml-rpc, rank-math, secondary-title
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 0.4.1
+Stable tag: 0.5.0
 License: Apache-2.0
 
 Allows WP Publisher to read or update a small whitelist of SEO, subtitle, and attachment metadata through authenticated REST and XML-RPC calls.
@@ -13,11 +13,16 @@ Allows WP Publisher to read or update a small whitelist of SEO, subtitle, and at
 1. In WordPress, open Plugins > Add New > Upload Plugin.
 2. Upload wp-publisher-companion.zip and activate it.
 3. Keep Rank Math active if you want to publish Focus Keyword and SEO Description.
-4. Keep Secondary Title active if you want to synchronize the `secondaryTitle` property.
+4. Keep Secondary Title active only for legacy `_secondary_title` synchronization. WP Title Layer subtitles use its canonical core REST metadata instead.
 
 The companion uses the same WordPress credentials already configured in Obsidian. Every REST and XML-RPC route checks authentication and edit permissions; no public unauthenticated metadata endpoint is exposed.
 
 == Changelog ==
+
+= 0.5.0 =
+* Reports whether WP Title Layer or the legacy Secondary Title plugin owns subtitles.
+* Stops legacy `_secondary_title` reads and writes when WP Title Layer is active.
+* Keeps authentication policy explicit; the companion does not bypass Wordfence or silently change transport.
 
 = 0.4.1 =
 * Corrects the packaged plugin author and project metadata.

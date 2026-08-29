@@ -93,6 +93,11 @@ import {
   getSyncBaseline,
   upsertSyncBaseline
 } from './sync-baseline';
+import {
+  applySeriesIntentToMatter,
+  parseSeriesFrontMatter,
+  type SeriesPublishingCatalog
+} from './series';
 
 interface PublishExecutionContext {
   sourceFile: TFile;
@@ -174,8 +179,36 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     return true;
   }
 
-  protected getEditorialMetadataCapabilities(): EditorialMetadataCapabilities {
+  protected getEditorialMetadataCapabilities(
+    _postType?: PostType
+  ): EditorialMetadataCapabilities {
     return { focusKeyword: false, metaDescription: false, secondaryTitle: false };
+  }
+
+  protected async getSeriesPublishingCatalog(
+    _certificate: WordPressAuthParams,
+    _postTypes: readonly PostType[]
+  ): Promise<SeriesPublishingCatalog> {
+    return {
+      transport: 'unsupported',
+      definitions: [],
+      supportedPostTypes: [],
+      subtitlePostTypes: []
+    };
+  }
+
+  protected async prepareTransportMetadata(
+    postParams: WordPressPostParams,
+    _certificate: WordPressAuthParams
+  ): Promise<void> {
+    const selected = !isMergeUpdate(postParams)
+      || new Set(postParams.updateFields ?? []).has(PullField.Series);
+    if (!isContentOnlyUpdate(postParams)
+      && selected
+      && postParams.seriesPlacement !== undefined
+    ) {
+      throw new Error(this.plugin.i18n.t('error_seriesRequiresRestProfile'));
+    }
   }
 
   private async getAuth(reuseSession = false): Promise<WordPressAuthParams> {
@@ -195,8 +228,12 @@ export abstract class AbstractWordPressClient implements WordPressClient {
             password: this.profile.password
           };
           const authResult = await this.validateUser(auth);
-          authenticated = authResult.code === WordPressClientReturnCode.OK;
-          if (!authenticated) showError(this.plugin.i18n.t('error_invalidUser'));
+          if (authResult.code === WordPressClientReturnCode.OK) {
+            authenticated = true;
+          } else {
+            showError(authResult.error?.message
+              ?? this.plugin.i18n.t('error_invalidUser'));
+          }
         } catch (error) {
           showError(error);
         }
@@ -204,7 +241,9 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       if (!authenticated) {
         const result = await openLoginModal(this.plugin, this.profile, async (auth) => {
           const authResult = await this.validateUser(auth);
-          return authResult.code === WordPressClientReturnCode.OK;
+          return authResult.code === WordPressClientReturnCode.OK
+            ? true
+            : authResult.error?.message ?? this.plugin.i18n.t('error_invalidUser');
         });
         if (!result) {
           throw new Error(this.plugin.i18n.t('error_loginCancelled'));
@@ -327,17 +366,17 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       : !contentOnly
         && Object.prototype.hasOwnProperty.call(postParams, 'secondaryTitle');
     if (focusKeywordRequested
-      && !this.getEditorialMetadataCapabilities().focusKeyword
+      && !this.getEditorialMetadataCapabilities(postParams.postType).focusKeyword
     ) {
       throw new Error(this.plugin.i18n.t('error_focusKeywordUnsupported'));
     }
     if (metaDescriptionRequested
-      && !this.getEditorialMetadataCapabilities().metaDescription
+      && !this.getEditorialMetadataCapabilities(postParams.postType).metaDescription
     ) {
       throw new Error(this.plugin.i18n.t('error_metaDescriptionUnsupported'));
     }
     if (secondaryTitleRequested
-      && !this.getEditorialMetadataCapabilities().secondaryTitle
+      && !this.getEditorialMetadataCapabilities(postParams.postType).secondaryTitle
     ) {
       throw new Error(this.plugin.i18n.t('error_secondaryTitleUnsupported'));
     }
@@ -606,6 +645,8 @@ export abstract class AbstractWordPressClient implements WordPressClient {
               return remoteDocument.capabilities.metaDescription;
             case PullField.SecondaryTitle:
               return remoteDocument.capabilities.secondaryTitle;
+            case PullField.Series:
+              return remoteDocument.capabilities.series;
             default:
               return true;
           }
@@ -615,6 +656,12 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         params.categoryTerms
       );
       const localMatter = { ...params.localMatter };
+      if (!contentOnly && params.postParams.seriesPlacement !== undefined) {
+        applySeriesIntentToMatter(
+          localMatter,
+          params.postParams.seriesPlacement
+        );
+      }
       if (params.execution.writeBackToNote
         && !contentOnly
         && params.postParams.postType === PostTypeConst.Post
@@ -649,6 +696,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
           focusKeyword: remoteDocument.focusKeyword,
           metaDescription: remoteDocument.metaDescription,
           secondaryTitle: remoteDocument.secondaryTitle,
+          seriesPlacement: remoteDocument.seriesPlacement,
           capabilities: remoteDocument.capabilities
         }
       });
@@ -757,12 +805,40 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         execution: params.execution,
         timestamp
       });
+      if (!result.data.syncBaselineUpdated && !result.data.partialFailure) {
+        const warning = this.plugin.i18n.t('warning_syncBaselineUpdateFailed');
+        result.data.warnings = [ ...new Set([
+          ...(result.data.warnings ?? []),
+          warning
+        ]) ];
+        result.data.partialFailure = true;
+      }
       await this.recordPublishHistory({
         ...baseEntry,
-        outcome: PublishHistoryOutcome.Success,
+        outcome: result.data.partialFailure
+          ? PublishHistoryOutcome.Partial
+          : PublishHistoryOutcome.Success,
         postId: result.data.postId,
-        warningCount: result.data.warnings?.length
+        warningCount: result.data.warnings?.length,
+        message: result.data.warnings?.join('\n')
       });
+      if (params.execution.showNotices) {
+        new Notice(this.plugin.i18n.t(result.data.partialFailure
+          ? 'message_publishPartiallySucceeded'
+          : 'message_publishSuccessfully'));
+        result.data.warnings?.forEach(warning => {
+          new Notice(warning, ERROR_NOTICE_TIMEOUT);
+        });
+      }
+      if (params.execution.showEditConfirm) {
+        void openPostPublishedModal(this.plugin)
+          .then(() => {
+            openWithBrowser(`${this.profile.endpoint}/wp-admin/post.php`, {
+              action: 'edit',
+              post: result.data.postId
+            });
+          });
+      }
       return result;
     } catch (error) {
       await this.recordPublishHistory({
@@ -811,6 +887,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       if (!mergeUpdate) {
         this.ensureValidSchedule(postParams);
       }
+      await this.prepareTransportMetadata(postParams, auth);
       await this.prepareEditorialMetadata(postParams, auth, execution.sourceFile);
       if (!mergeUpdate || reviewedFields.has(PullField.Tags)) {
         const tagTerms = await this.getTags(postParams.tags, auth);
@@ -852,11 +929,8 @@ export abstract class AbstractWordPressClient implements WordPressClient {
           ...this.publishWarnings
         ]) ];
       }
-      if (execution.showNotices) {
-        new Notice(this.plugin.i18n.t('message_publishSuccessfully'));
-        result.data.warnings?.forEach(warning => {
-          new Notice(warning, ERROR_NOTICE_TIMEOUT);
-        });
+      if ((result.data.warnings?.length ?? 0) > 0) {
+        result.data.partialFailure = true;
       }
       // post id will be returned if creating, true if editing
       const postId = result.data.postId;
@@ -879,6 +953,9 @@ export abstract class AbstractWordPressClient implements WordPressClient {
                 tags: !contentOnly
                   ? syncContext.publishedTags
                   : undefined,
+                seriesPlacement: !contentOnly
+                  ? postParams.seriesPlacement
+                  : undefined,
                 lastPublishedAt: syncMetadata.lastPublishedAt,
                 lastPublishAction: syncMetadata.lastPublishAction
               });
@@ -892,9 +969,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
               ...(result.data.warnings ?? []),
               warning
             ]) ];
-            if (execution.showNotices) {
-              new Notice(warning, ERROR_NOTICE_TIMEOUT);
-            }
+            result.data.partialFailure = true;
           }
         }
 
@@ -903,15 +978,6 @@ export abstract class AbstractWordPressClient implements WordPressClient {
           await this.plugin.saveSettings();
         }
 
-        if (execution.showEditConfirm) {
-          openPostPublishedModal(this.plugin)
-            .then(() => {
-              openWithBrowser(`${this.profile.endpoint}/wp-admin/post.php`, {
-                action: 'edit',
-                post: postId
-              });
-            });
-        }
       }
     }
     return result;
@@ -1153,7 +1219,8 @@ export abstract class AbstractWordPressClient implements WordPressClient {
               : undefined,
             useEditorialFrontMatter: true,
             usePublishingControlFrontMatter: true,
-            useNoteTags: true
+            useNoteTags: true,
+            useSeriesFrontMatter: true
           }
         );
         postParams.categories = selectedCategories;
@@ -1184,13 +1251,15 @@ export abstract class AbstractWordPressClient implements WordPressClient {
           publishMetadata.postType ?? profileDefaults.postType,
           postTypes
         );
+        const seriesCatalog = await this.getSeriesPublishingCatalog(auth, postTypes);
         result = await new Promise(resolve => {
           const publishModal = new WpPublishModal(
             this.plugin,
             { items: categories, selected: selectedCategories },
             { items: postTypes, selected: selectedPostType },
             publishTarget,
-            this.getEditorialMetadataCapabilities(),
+            this.getEditorialMetadataCapabilities(selectedPostType),
+            seriesCatalog,
             profileDefaults,
             {
               title: typeof matterData.title === 'string'
@@ -1282,6 +1351,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       useEditorialFrontMatter?: boolean;
       usePublishingControlFrontMatter?: boolean;
       useNoteTags?: boolean;
+      useSeriesFrontMatter?: boolean;
     } = {}
   ): WordPressPostParams {
     const postParams = { ...params };
@@ -1294,6 +1364,14 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         postParams,
         fillExcerptFromMetaDescription(readEditorialFrontMatter(matterData))
       );
+    }
+    if (options.useSeriesFrontMatter) {
+      const series = parseSeriesFrontMatter(matterData);
+      if (series.issues.length > 0) {
+        throw new Error(series.issues.map(item => item.message).join(' '));
+      }
+      delete postParams.seriesPlacement;
+      if (series.intent) postParams.seriesPlacement = series.intent;
     }
     postParams.title = resolveWordPressTitle(matterData, noteTitle);
     delete postParams.postId;

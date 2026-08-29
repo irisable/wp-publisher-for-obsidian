@@ -3,6 +3,7 @@ export const BatchPublishState = {
   Queued: 'queued',
   Publishing: 'publishing',
   Success: 'success',
+  Partial: 'partial',
   Failure: 'failure',
   Skipped: 'skipped'
 } as const;
@@ -16,6 +17,7 @@ export interface BatchPublishCounts {
   queued: number;
   publishing: number;
   success: number;
+  partial: number;
   failure: number;
   skipped: number;
 }
@@ -50,7 +52,8 @@ export function filterBatchNotePaths(
 }
 
 export function isRetryableBatchState(state: BatchPublishState): boolean {
-  return state === BatchPublishState.Failure
+  return state === BatchPublishState.Partial
+    || state === BatchPublishState.Failure
     || state === BatchPublishState.Skipped;
 }
 
@@ -62,6 +65,7 @@ export function countBatchPublishStates(
     queued: 0,
     publishing: 0,
     success: 0,
+    partial: 0,
     failure: 0,
     skipped: 0
   };

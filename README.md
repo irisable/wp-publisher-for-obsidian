@@ -24,7 +24,8 @@ reviewed WordPress-to-Obsidian synchronization.
 - Create or update posts with an explicit target banner and full or
   content-only update modes.
 - Publish titles, slugs, excerpts, categories, tags, featured images, scheduled
-  dates, comments, post types, Rank Math fields, and Secondary Title metadata.
+  dates, comments, post types, Rank Math fields, WP Title Layer subtitles, and
+  portable Series placement.
 - Reuse unchanged media by content hash and update attachment metadata.
 - Preview rendered content, metadata, Gutenberg blocks, and HTML fallbacks
   before publishing.
@@ -85,7 +86,12 @@ Supported transports are:
 Use a dedicated, revocable WordPress Application Password rather than your main
 account password whenever possible.
 
-WordPress.com is not a supported connection type in 1.0. New profiles cannot
+Wordfence can disable WordPress Application Passwords. In that configuration,
+the REST API remains reachable but authenticated Publisher requests are rejected.
+WP Publisher reports the HTTP status and WordPress error code; the Companion does
+not bypass the policy or silently fall back to XML-RPC.
+
+WordPress.com is not a supported connection type in the current release. New profiles cannot
 select it. A profile that already contains a saved legacy token remains readable
 for migration compatibility, but the token cannot be authorized, validated, or
 refreshed by this release.
@@ -110,7 +116,10 @@ All fields are optional. Canonical note-controlled properties include:
 ```yaml
 ---
 title: A WordPress title
-secondaryTitle: An optional subtitle
+subtitle: An optional subtitle
+series: an-existing-series-slug
+seriesSeason: 2
+seriesLabel: "15A"
 slug: a-portable-slug
 excerpt: A short WordPress excerpt
 metaDescription: A Rank Math SEO description
@@ -130,7 +139,23 @@ commentStatus: open
 ```
 
 Compatibility aliases remain readable for `focus_keyword`,
-`meta_description`, `secondary_title`, and `comment_status`.
+`meta_description`, `secondaryTitle`, `secondary_title`, and `comment_status`.
+
+`subtitle` writes WP Title Layer's canonical `wptl_subtitle` field when
+the selected post type exposes it. A legacy Secondary Title site can still use
+the Companion fallback, but the two fields are never dual-written. Existing
+notes keep using either compatible property name; new notes and newly pulled
+subtitles prefer `subtitle`.
+
+`series` refers to one Series already defined by WP Title Layer. Flat Series
+need only the slug; seasoned Series also use the Season's stable public
+`seriesSeason` ID. Omitting `series` while updating preserves the remote
+placement, while `series: ""` explicitly removes it. The first implementation
+supports normal `article` placement through WordPress core REST; XML-RPC and
+advanced book roles are blocked before any article write rather than silently
+dropped. A seasoned Series is published to multiple sites one site at a time so
+each site's Season label can be reviewed. Series definitions and ordering remain
+owned by WordPress.
 
 `wpTags` contains WordPress tag names and may include spaces. The transport
 resolves them to the selected site's term IDs and slugs, so site-specific
@@ -177,6 +202,10 @@ description: Media-library description
 `caption: =alt` explicitly reuses the final Alt Text as both the WordPress
 attachment caption and the editable Gutenberg figcaption.
 
+An explicit `title` remains the media-library attachment title. It is not
+prepended to the visible figcaption; a literal `caption` is rendered as that
+caption and nothing more.
+
 ## Explicit Synchronization
 
 Synchronization is always user initiated. The command palette provides:
@@ -194,8 +223,11 @@ propagation, silent conflict selection, batch pull, or binary media merge.
 ## Optional WordPress Companion
 
 Install [`WP Publisher Companion`](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/wordpress-companion/README.md) on
-self-hosted WordPress when you need protected Rank Math fields, Secondary Title,
-or XML-RPC attachment metadata. Ordinary post publishing continues without it;
+self-hosted WordPress when you need protected Rank Math fields, legacy Secondary
+Title, or XML-RPC attachment metadata. WP Title Layer canonical subtitles and
+Series use the post type's core REST contract instead. Companion 0.5.0 reports
+the active subtitle provider and disables legacy `_secondary_title` writes when
+WP Title Layer is active. Ordinary post publishing continues without it;
 unsupported controls are shown as unavailable rather than silently failing.
 
 ## Privacy And Network Use
@@ -263,7 +295,7 @@ WordPress 到 Obsidian 同步。
 - 保留经典 HTML 输出，以兼容较旧的 WordPress 工作流。
 - 明确显示将要新建还是更新文章，并支持完整更新或仅更新正文。
 - 发布标题、别名、摘要、分类、标签、特色图片、计划时间、评论状态、
-  文章类型、Rank Math 字段和 Secondary Title 副标题。
+  文章类型、Rank Math 字段、WP Title Layer 副标题和可移植的系列归属。
 - 按内容哈希复用未变化的媒体，并可更新附件元数据。
 - 发布前预览渲染内容、元数据、Gutenberg 区块和 HTML 回退。
 - 保存各账号的默认发布设置和可复用发布模板。
@@ -321,7 +353,11 @@ npm run build
 如条件允许，请使用专用、可撤销的 WordPress Application Password，
 不要使用 WordPress 账号主密码。
 
-1.0 版不支持新建 WordPress.com 连接。新账号不能选择 WordPress.com。
+Wordfence 可以禁用 WordPress Application Password。此时 REST API 本身仍可访问，
+但 Publisher 的认证请求会被拒绝。插件会显示 HTTP 状态和 WordPress 错误 code；
+Companion 不会绕过该策略，也不会静默切换到 XML-RPC。
+
+当前版本不支持新建 WordPress.com 连接。新账号不能选择 WordPress.com。
 如果已有账号保存了旧版 token，插件仍可读取它以便迁移，但本版本不能授权、
 验证或刷新该 token。
 
@@ -344,7 +380,10 @@ npm run build
 ```yaml
 ---
 title: A WordPress title
-secondaryTitle: An optional subtitle
+subtitle: An optional subtitle
+series: an-existing-series-slug
+seriesSeason: 2
+seriesLabel: "15A"
 slug: a-portable-slug
 excerpt: A short WordPress excerpt
 metaDescription: A Rank Math SEO description
@@ -363,8 +402,20 @@ commentStatus: open
 ---
 ```
 
-插件仍兼容读取 `focus_keyword`、`meta_description`、`secondary_title`
-和 `comment_status` 等旧属性名。
+插件仍兼容读取 `focus_keyword`、`meta_description`、`secondaryTitle`、
+`secondary_title` 和 `comment_status` 等旧属性名。
+
+当所选文章类型公开相应能力时，`subtitle` 写入 WP Title Layer canonical
+字段 `wptl_subtitle`。旧 Secondary Title 站点仍可使用 Companion 回退，但插件
+不会同时双写两个副标题字段。已有笔记继续沿用原属性名；新笔记及新拉取的副标题
+首选 `subtitle`。
+
+`series` 指向 WP Title Layer 中已经存在的一个系列。平铺系列只需 slug；分季系列
+还需填写该分季稳定的公开 `seriesSeason` ID。更新文章时省略 `series` 会保留远端
+归属，`series: ""` 才表示明确移出系列。首版只通过 WordPress 核心 REST 支持普通
+`article` 归属；XML-RPC 和高级书籍角色会在任何文章写入前阻止，而不是静默丢弃。
+分季 Series 的多站点发布须逐站执行，以便分别核对各站的 Season 名称。系列定义
+和篇序仍完全由 WordPress 管理。
 
 `wpTags` 专门保存 WordPress 标签名称，可以包含空格；发布时再解析为所选站点的
 term ID 和 slug，不把站点专属标识存入笔记。Obsidian 自身的 `tags` 属性和正文内
@@ -407,6 +458,9 @@ description: Media-library description
 `caption: =alt` 会明确要求插件将最终 Alt Text 同时用作 WordPress
 附件说明文字和可编辑的 Gutenberg `figcaption`。
 
+显式 `title` 只作为媒体库中的附件标题，不会再被拼到可见 `figcaption` 前面；
+字面 `caption` 的可见内容就是它本身。
+
 ## 显式双向同步
 
 同步始终由用户主动触发。命令面板提供以下功能：
@@ -423,9 +477,12 @@ description: Media-library description
 
 ## 可选 WordPress Companion
 
-当自托管 WordPress 需要写入受保护的 Rank Math 字段、Secondary Title，
+当自托管 WordPress 需要写入受保护的 Rank Math 字段、旧 Secondary Title，
 或通过 XML-RPC 更新附件元数据时，请安装
 [`WP Publisher Companion`](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/wordpress-companion/README.md)。
+WP Title Layer canonical 副标题和系列归属改由文章类型的核心 REST 契约处理。
+Companion 0.5.0 会报告当前副标题提供者，并在 WP Title Layer 激活时停用旧
+`_secondary_title` 写入。
 不安装 Companion 仍可正常发布普通文章；不受支持的控制项会明确显示为不可用，
 而不是静默失败。
 

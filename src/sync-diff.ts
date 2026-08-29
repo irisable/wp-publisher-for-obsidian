@@ -1,5 +1,12 @@
 import type { MatterData } from './types';
 import { readWordPressTagsFrontMatter } from './front-matter';
+import {
+  applySeriesIntentToMatter,
+  parseSeriesFrontMatter,
+  serializeSeriesIntent,
+  deserializeSeriesIntent,
+  type PortableSeriesPlacement
+} from './series';
 
 export const PullField = {
   Title: 'title',
@@ -13,7 +20,8 @@ export const PullField = {
   FeaturedMedia: 'featuredMedia',
   FocusKeyword: 'focusKeyword',
   MetaDescription: 'metaDescription',
-  SecondaryTitle: 'secondaryTitle'
+  SecondaryTitle: 'secondaryTitle',
+  Series: 'series'
 } as const;
 
 export type PullField = typeof PullField[keyof typeof PullField];
@@ -22,6 +30,7 @@ export type PullFieldValue = string | string[];
 export const PULL_FIELD_ORDER: PullField[] = [
   PullField.Title,
   PullField.SecondaryTitle,
+  PullField.Series,
   PullField.Body,
   PullField.Slug,
   PullField.Excerpt,
@@ -58,6 +67,7 @@ export interface PullRemoteSource {
   focusKeyword?: string;
   metaDescription?: string;
   secondaryTitle?: string;
+  seriesPlacement?: PortableSeriesPlacement | null;
   capabilities: {
     slug: boolean;
     excerpt: boolean;
@@ -69,6 +79,7 @@ export interface PullRemoteSource {
     focusKeyword: boolean;
     metaDescription: boolean;
     secondaryTitle: boolean;
+    series: boolean;
   };
 }
 
@@ -294,9 +305,23 @@ export function buildPullFieldDiffs(options: {
     ),
     createField(
       PullField.SecondaryTitle,
-      ownString(matter, 'secondaryTitle', 'secondary_title'),
+      ownString(matter, 'subtitle', 'secondaryTitle', 'secondary_title'),
       remote.secondaryTitle ?? '',
       remote.capabilities.secondaryTitle
+    ),
+    createField(
+      PullField.Series,
+      (() => {
+        const local = parseSeriesFrontMatter(matter);
+        return local.intent ? serializeSeriesIntent(local.intent) : '';
+      })(),
+      remote.seriesPlacement
+        ? serializeSeriesIntent({
+          kind: 'placement',
+          placement: remote.seriesPlacement
+        })
+        : serializeSeriesIntent({ kind: 'clear' }),
+      remote.capabilities.series
     ),
     createField(PullField.Body, parts.body, remote.body),
     createField(
@@ -379,6 +404,18 @@ function setOptionalText(
   }
 }
 
+function setCompatibleOptionalText(
+  matter: MatterData,
+  preferredKey: string,
+  value: string,
+  aliases: readonly string[]
+): void {
+  const key = [ preferredKey, ...aliases ].find(candidate => (
+    Object.prototype.hasOwnProperty.call(matter, candidate)
+  )) ?? preferredKey;
+  matter[key] = value;
+}
+
 export function applySelectedPullFields(
   matter: MatterData,
   diffs: readonly PullFieldDiff[],
@@ -439,11 +476,17 @@ export function applySelectedPullFields(
         );
         break;
       case PullField.SecondaryTitle:
-        setOptionalText(
+        setCompatibleOptionalText(
           next,
-          'secondaryTitle',
+          'subtitle',
           String(diff.remoteValue),
-          [ 'secondary_title' ]
+          [ 'secondaryTitle', 'secondary_title' ]
+        );
+        break;
+      case PullField.Series:
+        applySeriesIntentToMatter(
+          next,
+          deserializeSeriesIntent(String(diff.remoteValue))
         );
         break;
     }

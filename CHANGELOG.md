@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0] - 2026-08-29
+
+### Added
+
+* Added WP Title Layer canonical subtitle publishing with `subtitle` as the
+  preferred property and non-destructive compatibility for `secondaryTitle`
+  and `secondary_title`.
+* Added portable WP Title Layer Series selection, Season public IDs, publish
+  preview, history, remote inspection, guarded pull, and three-way merge.
+* Added authenticated REST capability discovery and explicit preflight errors
+  when a selected transport or post type cannot publish Series safely.
+
+### Changed
+
+* Upgraded WP Publisher Companion to 0.5.0 so it reports the active subtitle
+  provider and never writes the legacy `_secondary_title` field when WP Title
+  Layer owns the canonical value.
+* Kept attachment `title` as media-library metadata instead of prepending it to
+  a visible figcaption; `caption` now controls the figcaption by itself.
+* Made REST authentication guidance distinguish the WordPress username, the
+  generated Application Password, its display label, HTTP local environments,
+  and optional Wordfence policy.
+
+### Fixed
+
+* Preserved explicit empty subtitle values across compatible property aliases,
+  pull, and reviewed merge instead of deleting the existing owned property.
+* Kept partial metadata failures, retry state, and coordinated publishing from
+  being reported as complete success.
+
+### Security
+
+* Companion does not bypass Wordfence, enable Application Passwords, or silently
+  fall back to XML-RPC. Application Password REST remains the complete WP Title
+  Layer path; XML-RPC remains available for its established compatibility scope.
+
 ## [1.0.2] - 2026-07-25
 
 ### Changed

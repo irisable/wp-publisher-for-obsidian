@@ -5,6 +5,10 @@ import type {
   PullFieldValue,
   PullRemoteSource
 } from './sync-diff';
+import {
+  parseSeriesFrontMatter,
+  serializeSeriesIntent
+} from './series';
 
 const FIELD = {
   Title: 'title',
@@ -18,12 +22,14 @@ const FIELD = {
   FeaturedMedia: 'featuredMedia',
   FocusKeyword: 'focusKeyword',
   MetaDescription: 'metaDescription',
-  SecondaryTitle: 'secondaryTitle'
+  SecondaryTitle: 'secondaryTitle',
+  Series: 'series'
 } as const;
 
 export const SYNC_FIELD_ORDER: PullField[] = [
   FIELD.Title,
   FIELD.SecondaryTitle,
+  FIELD.Series,
   FIELD.Body,
   FIELD.Slug,
   FIELD.Excerpt,
@@ -288,8 +294,16 @@ export function createLocalSyncDocument(options: {
       case FIELD.SecondaryTitle:
         document.fields[field] = textSnapshot(
           options.matter,
-          [ 'secondaryTitle', 'secondary_title' ]
+          [ 'subtitle', 'secondaryTitle', 'secondary_title' ]
         );
+        break;
+      case FIELD.Series:
+        {
+          const series = parseSeriesFrontMatter(options.matter);
+          document.fields[field] = series.intent
+            ? { present: true, value: serializeSeriesIntent(series.intent) }
+            : { present: false, value: '' };
+        }
         break;
     }
   });
@@ -354,6 +368,11 @@ export function createRemoteSyncDocument(options: {
       : undefined,
     [FIELD.SecondaryTitle]: remote.capabilities.secondaryTitle
       ? remote.secondaryTitle ?? ''
+      : undefined,
+    [FIELD.Series]: remote.capabilities.series
+      ? serializeSeriesIntent(remote.seriesPlacement
+        ? { kind: 'placement', placement: remote.seriesPlacement }
+        : { kind: 'clear' })
       : undefined
   };
   const document: SyncDocument = { fields: {} };

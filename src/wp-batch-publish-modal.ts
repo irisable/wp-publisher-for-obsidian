@@ -44,6 +44,7 @@ interface BatchNoteRow {
   state: BatchPublishStateValue;
   error?: string;
   warningCount?: number;
+  warnings?: string[];
   snapshot?: WordPressSourceSnapshot;
 }
 
@@ -334,6 +335,7 @@ class WpBatchPublishModal extends AbstractModal {
       row.state = BatchPublishState.Queued;
       row.error = undefined;
       row.warningCount = undefined;
+      row.warnings = undefined;
       row.snapshot = undefined;
       row.target = undefined;
       row.strategy = PublishUpdateStrategy.Full;
@@ -486,7 +488,7 @@ class WpBatchPublishModal extends AbstractModal {
     const counts = countBatchPublishStates(rows.map(row => row.state));
     const summary = this.contentEl.createDiv({
       cls: 'wp-publisher-batch-summary'
-        + (counts.failure > 0 ? ' has-failures' : '')
+        + (counts.failure > 0 || counts.partial > 0 ? ' has-failures' : '')
     });
     const copy = summary.createDiv();
     copy.createEl('strong', {
@@ -497,6 +499,7 @@ class WpBatchPublishModal extends AbstractModal {
         })
         : this.t('batchModal_resultSummary', {
           success: String(counts.success),
+          partial: String(counts.partial),
           failure: String(counts.failure),
           skipped: String(counts.skipped)
         })
@@ -520,6 +523,7 @@ class WpBatchPublishModal extends AbstractModal {
 
     const statusStrip = this.contentEl.createDiv({ cls: 'wp-publisher-batch-status-strip' });
     this.renderStateCount(statusStrip, 'is-success', this.t('batchModal_statusSuccessShort'), counts.success);
+    this.renderStateCount(statusStrip, 'is-partial', this.t('batchModal_statusPartialShort'), counts.partial);
     this.renderStateCount(statusStrip, 'is-failure', this.t('batchModal_statusFailure'), counts.failure);
     this.renderStateCount(statusStrip, 'is-skipped', this.t('batchModal_statusSkipped'), counts.skipped);
     this.renderStateCount(
@@ -572,6 +576,12 @@ class WpBatchPublishModal extends AbstractModal {
     if (row.error) {
       card.createDiv({ cls: 'wp-publisher-batch-error', text: row.error });
     }
+    row.warnings?.forEach(warning => {
+      card.createDiv({
+        cls: 'wp-publisher-batch-warning-detail',
+        text: warning
+      });
+    });
 
     if (!this.running) {
       const actions = card.createDiv({ cls: 'wp-publisher-batch-actions' });
@@ -624,25 +634,28 @@ class WpBatchPublishModal extends AbstractModal {
       return;
     }
 
-    const failures = rows.filter(row =>
-      row.snapshot && row.state === BatchPublishState.Failure
+    const incomplete = rows.filter(row =>
+      row.snapshot && (
+        row.state === BatchPublishState.Partial
+        || row.state === BatchPublishState.Failure
+      )
     );
     const skipped = rows.filter(row =>
       row.snapshot && row.state === BatchPublishState.Skipped
     );
     footer.createSpan({ text: this.t('batchModal_retryHint') });
-    if (failures.length > 0) {
+    if (incomplete.length > 0) {
       const retryFailures = footer.createEl('button', {
         cls: 'mod-cta wp-publisher-batch-primary',
-        text: this.t('batchModal_retryFailed', { count: String(failures.length) })
+        text: this.t('batchModal_retryIncomplete', { count: String(incomplete.length) })
       });
       retryFailures.addEventListener('click', () => {
-        void this.runRows(failures);
+        void this.runRows(incomplete);
       });
     }
     if (skipped.length > 0) {
       const resume = footer.createEl('button', {
-        cls: failures.length === 0 ? 'mod-cta wp-publisher-batch-primary' : '',
+        cls: incomplete.length === 0 ? 'mod-cta wp-publisher-batch-primary' : '',
         text: this.t('batchModal_resumeSkipped', { count: String(skipped.length) })
       });
       resume.addEventListener('click', () => {
@@ -680,6 +693,7 @@ class WpBatchPublishModal extends AbstractModal {
       row.state = BatchPublishState.Queued;
       row.error = undefined;
       row.warningCount = undefined;
+      row.warnings = undefined;
     });
     this.render();
 
@@ -767,8 +781,11 @@ class WpBatchPublishModal extends AbstractModal {
         return;
       }
 
-      row.state = BatchPublishState.Success;
+      row.state = result.data.partialFailure
+        ? BatchPublishState.Partial
+        : BatchPublishState.Success;
       row.warningCount = result.data.warnings?.length;
+      row.warnings = result.data.warnings;
       row.target = findMultiSiteTarget(
         this.plugin.settings.multiSiteTargets,
         row.file.path,
@@ -819,6 +836,7 @@ class WpBatchPublishModal extends AbstractModal {
       row.state = BatchPublishState.Idle;
       row.error = undefined;
       row.warningCount = undefined;
+      row.warnings = undefined;
       row.strategy = PublishUpdateStrategy.Full;
     });
     this.render();
@@ -867,6 +885,10 @@ class WpBatchPublishModal extends AbstractModal {
         return this.t('batchModal_statusPublishing');
       case BatchPublishState.Success:
         return this.t('batchModal_statusSuccess', {
+          postId: row.target?.postId ?? ''
+        });
+      case BatchPublishState.Partial:
+        return this.t('batchModal_statusPartial', {
           postId: row.target?.postId ?? ''
         });
       case BatchPublishState.Failure:

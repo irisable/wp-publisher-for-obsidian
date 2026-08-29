@@ -11,6 +11,7 @@ import {
 } from './publish-strategy';
 import { PostTypeConst, type CommentStatus, type PostStatus } from './wp-api';
 import type { WordPressPostParams } from './wp-client';
+import { parseSeriesFrontMatter } from './series';
 
 export interface BuildCoordinatedPostParamsOptions {
   profile: Pick<WpProfile, 'publishDefaults' | 'lastSelectedCategories'>;
@@ -22,6 +23,13 @@ export interface BuildCoordinatedPostParamsOptions {
   template?: PublishingTemplate;
   target?: MultiSiteTarget;
   updateStrategy?: PublishUpdateStrategyValue;
+}
+
+/** Season labels are site-owned, so the first Series release reviews them one site at a time. */
+export function requiresSingleSiteSeriesReview(matter: MatterData): boolean {
+  const parsed = parseSeriesFrontMatter(matter);
+  return parsed.intent?.kind === 'placement'
+    && parsed.intent.placement.seriesSeason !== undefined;
 }
 
 /** Build the non-content fields shared by multi-site and batch publishing. */

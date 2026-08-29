@@ -1,3 +1,14 @@
+import {
+  WPTL_SEASON_KEY_META,
+  WPTL_SEQUENCE_LABEL_META,
+  WPTL_SERIES_ROLE_META,
+  WPTL_SERIES_SCOPE_META,
+  WPTL_SERIES_TAXONOMY,
+  WPTL_SUBTITLE_META,
+  type PortableSeriesPlacement,
+  type RemoteSeriesPlacementRaw
+} from './series';
+
 export const RemotePostSourceFormat = {
   BlockEditor: 'block-editor',
   ClassicHtml: 'classic-html',
@@ -42,6 +53,7 @@ export interface RemotePostFieldCapabilities {
   focusKeyword: boolean;
   metaDescription: boolean;
   secondaryTitle: boolean;
+  series: boolean;
 }
 
 export interface RemotePostDocument {
@@ -64,6 +76,10 @@ export interface RemotePostDocument {
   focusKeyword?: string;
   metaDescription?: string;
   secondaryTitle?: string;
+  secondaryTitleOwner?: 'wptl' | 'legacy';
+  seriesPlacement?: PortableSeriesPlacement | null;
+  /** Site-specific identifiers are transient and never copied into a baseline. */
+  seriesRaw?: RemoteSeriesPlacementRaw;
   capabilities: RemotePostFieldCapabilities;
 }
 
@@ -383,7 +399,33 @@ export function parseCoreRestRemotePost(response: unknown): RemotePostDocument {
   const meta = metadataRecord(response.meta);
   const focusKeyword = text(meta.rank_math_focus_keyword);
   const metaDescription = text(meta.rank_math_description);
-  const secondaryTitle = textAllowEmpty(meta._secondary_title);
+  const canonicalSecondaryTitle = textAllowEmpty(meta[WPTL_SUBTITLE_META]);
+  const legacySecondaryTitle = textAllowEmpty(meta._secondary_title);
+  const secondaryTitle = hasOwn(meta, WPTL_SUBTITLE_META)
+    ? canonicalSecondaryTitle ?? ''
+    : legacySecondaryTitle;
+  const secondaryTitleOwner = hasOwn(meta, WPTL_SUBTITLE_META)
+    ? 'wptl' as const
+    : hasOwn(meta, '_secondary_title')
+      ? 'legacy' as const
+      : undefined;
+  const seriesMetaAvailable = [
+    WPTL_SEASON_KEY_META,
+    WPTL_SERIES_ROLE_META,
+    WPTL_SERIES_SCOPE_META,
+    WPTL_SEQUENCE_LABEL_META
+  ].every(key => hasOwn(meta, key));
+  const seriesAvailable = hasOwn(response, WPTL_SERIES_TAXONOMY)
+    && seriesMetaAvailable;
+  const seriesRaw: RemoteSeriesPlacementRaw | undefined = seriesAvailable
+    ? {
+      termIds: ids(response[WPTL_SERIES_TAXONOMY]),
+      seasonKey: textAllowEmpty(meta[WPTL_SEASON_KEY_META]) ?? '',
+      role: textAllowEmpty(meta[WPTL_SERIES_ROLE_META]) ?? '',
+      scope: textAllowEmpty(meta[WPTL_SERIES_SCOPE_META]) ?? '',
+      label: textAllowEmpty(meta[WPTL_SEQUENCE_LABEL_META]) ?? ''
+    }
+    : undefined;
   return {
     postId,
     postType,
@@ -414,6 +456,8 @@ export function parseCoreRestRemotePost(response: unknown): RemotePostDocument {
     ...(focusKeyword ? { focusKeyword } : {}),
     ...(metaDescription ? { metaDescription } : {}),
     ...(secondaryTitle !== undefined ? { secondaryTitle } : {}),
+    ...(secondaryTitleOwner ? { secondaryTitleOwner } : {}),
+    ...(seriesRaw ? { seriesRaw } : {}),
     capabilities: {
       slug: hasOwn(response, 'slug'),
       excerpt: editableText(response.excerpt) !== undefined,
@@ -426,7 +470,8 @@ export function parseCoreRestRemotePost(response: unknown): RemotePostDocument {
       featuredMedia: hasOwn(response, 'featured_media'),
       focusKeyword: hasOwn(meta, 'rank_math_focus_keyword'),
       metaDescription: hasOwn(meta, 'rank_math_description'),
-      secondaryTitle: hasOwn(meta, '_secondary_title')
+      secondaryTitle: secondaryTitleOwner !== undefined,
+      series: seriesAvailable
     }
   };
 }
@@ -499,7 +544,8 @@ export function parseWpComRemotePost(response: unknown): RemotePostDocument {
       featuredMedia: hasOwn(response, 'featured_image') || hasOwn(response, 'post_thumbnail'),
       focusKeyword: hasOwn(metadata, 'rank_math_focus_keyword'),
       metaDescription: hasOwn(metadata, 'rank_math_description'),
-      secondaryTitle: hasOwn(metadata, '_secondary_title')
+      secondaryTitle: hasOwn(metadata, '_secondary_title'),
+      series: false
     }
   };
 }
@@ -567,7 +613,8 @@ export function parseXmlRpcRemotePost(response: unknown): RemotePostDocument {
       featuredMedia: hasOwn(response, 'post_thumbnail'),
       focusKeyword: hasOwn(customFields, 'rank_math_focus_keyword'),
       metaDescription: hasOwn(customFields, 'rank_math_description'),
-      secondaryTitle: hasOwn(customFields, '_secondary_title')
+      secondaryTitle: hasOwn(customFields, '_secondary_title'),
+      series: false
     }
   };
 }
@@ -611,9 +658,24 @@ export function withRemotePostSecondaryTitle(
   return {
     ...document,
     secondaryTitle,
+    secondaryTitleOwner: 'legacy',
     capabilities: {
       ...document.capabilities,
       secondaryTitle: true
+    }
+  };
+}
+
+export function withRemotePostSeriesPlacement(
+  document: RemotePostDocument,
+  seriesPlacement: PortableSeriesPlacement | null
+): RemotePostDocument {
+  return {
+    ...document,
+    seriesPlacement,
+    capabilities: {
+      ...document.capabilities,
+      series: true
     }
   };
 }

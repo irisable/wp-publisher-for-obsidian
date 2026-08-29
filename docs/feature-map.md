@@ -6,7 +6,9 @@ This document is the canonical map of current user-facing behavior, major code e
 
 * P0, P1, P2, and P3 are completed.
 * P3-1 through P3-7 passed staged real-site acceptance on 2026-07-21.
-* The current automated baseline is 204 passing tests plus lint, TypeScript validation, and a production build.
+* The post-P3 WP Title Layer subtitle and Series integration passed independent QA and manual acceptance against the NAS test site and the production WordPress site on 2026-08-29.
+* The current automated baseline is 234 passing tests plus lint, TypeScript validation, a production build, and release checks; Companion PHP lint remains environment-limited until PHP CLI is available.
+* XML-RPC remains supported for its established compatibility workflows; WP Title Layer Series over XML-RPC is intentionally deferred rather than silently approximated.
 * There is no formal P4 roadmap or unfinished development task card.
 * The supported-transport release matrix remains a separate compatibility gate, not an open P3 feature.
 
@@ -56,7 +58,7 @@ Supported connection types:
 * REST API with miniOrange authentication
 * REST API with Application Passwords
 
-WordPress.com is excluded from 1.0 support and cannot be selected for a new profile. Existing saved-token profiles remain readable as legacy migration data and may continue through the retained REST context, but the plugin contains no client ID, secret, authorization callback, validation, or token-refresh flow.
+WordPress.com is excluded from current release support and cannot be selected for a new profile. Existing saved-token profiles remain readable as legacy migration data and may continue through the retained REST context, but the plugin contains no client ID, secret, authorization callback, validation, or token-refresh flow.
 
 Each profile has a stable local ID that survives renames. Profiles can keep their own status, comment, post-type, and tag defaults; remembered category IDs; SHA-256 media cache; and an optional Vault folder for explicitly downloaded remote media.
 
@@ -80,6 +82,7 @@ The pipeline coordinates:
 * Per-profile media deduplication, attachment metadata updates, and stale-cache recovery
 * Native Gutenberg serialization by default, with classic HTML compatibility available
 * Transport-specific publish payloads and protected metadata follow-up calls
+* Target-specific WP Title Layer Series resolution and public placement readback
 * Non-destructive note write-back, multi-site target updates, activity history, and strong sync baselines after verified success
 
 ## Publish Modal And Preview
@@ -92,18 +95,19 @@ The modal provides:
 * Full update or Content only selection for existing posts
 * Named publishing templates
 * Post status, validated schedule, comment status, and post type
-* Slug, Secondary Title, excerpt, and featured image
+* Slug, canonical or legacy Secondary Title, excerpt, and featured image
 * Rank Math Focus Keyword and SEO Description when supported
 * Tags and hierarchy-aware searchable categories
+* A searchable WP Title Layer Series selector with stable Season public IDs
 * A local-only preview of metadata, rendered Markdown, Gutenberg block counts, and Custom HTML fallbacks
 
 ## WordPress API And Companion
 
 Shared client interfaces are in [src/wp-client.ts](../src/wp-client.ts). The primary implementations are [src/wp-rest-client.ts](../src/wp-rest-client.ts) and [src/wp-xml-rpc-client.ts](../src/wp-xml-rpc-client.ts).
 
-The transport-independent model covers posts and pages, status, comments, taxonomy, slug, excerpt, featured media, Focus Keyword, SEO Description, Secondary Title, editable remote source, modification markers, and field-level capabilities.
+The transport-independent model covers posts and pages, status, comments, taxonomy, slug, excerpt, featured media, Focus Keyword, SEO Description, Secondary Title, portable WP Title Layer Series placement, editable remote source, modification markers, and field-level capabilities.
 
-The optional [WP Publisher Companion](../wordpress-companion/README.md) exposes a strict authenticated allowlist for Rank Math SEO values, Secondary Title, and attachment title, Alt Text, caption, and description. Every route checks authentication and edit capability; unsupported protected metadata remains visible without blocking ordinary content publishing.
+The optional [WP Publisher Companion](../wordpress-companion/README.md) exposes a strict authenticated allowlist for Rank Math SEO values, legacy Secondary Title, and attachment title, Alt Text, caption, and description. Companion 0.5.0 reports `wp-title-layer`, `legacy-secondary-title`, or `none` as the subtitle provider and disables legacy `_secondary_title` writes when WP Title Layer owns the canonical field. WP Title Layer subtitle and Series data use the post type's core REST schema instead of a custom Companion route. Every Companion route checks authentication and edit capability; it does not bypass Wordfence or silently switch transport.
 
 ## Front Matter Integration
 
@@ -112,11 +116,12 @@ Canonical front matter parsing and write-back are implemented in [src/front-matt
 Note-controlled fields:
 
 * `title`, with the note filename as fallback
-* `tags` and portable category slugs in `categories`
+* WordPress tag names in `wpTags` and portable category slugs in `categories`
 * `slug`, `excerpt`, and `featuredImage`
 * `focusKeyword`, with `focus_keyword` as a read-compatible alias
 * `metaDescription`, with `meta_description` as a read-compatible alias
 * `secondaryTitle`, with `secondary_title` as a read-compatible alias
+* The atomic Series group `series`, `seriesSeason`, `seriesRole`, `seriesScope`, and `seriesLabel`
 * `status` and `commentStatus`, with `comment_status` as a read-compatible alias
 
 Plugin-owned scalar relationship and activity fields:
@@ -138,7 +143,7 @@ Current behavior:
 * Markdown image alt text becomes post and attachment Alt Text without becoming a visible caption by default.
 * An adjacent `%% wp-media ... %%` block can set attachment title, Alt Text, caption, and description.
 * `caption: =alt` explicitly reuses the final Alt Text as the attachment caption and editable figcaption.
-* Filename-derived attachment titles remain in the media library but appear in a figcaption only when the author explicitly supplies a title.
+* Attachment title remains media-library metadata; even an explicitly authored title is not prepended to the visible figcaption. Only `caption` supplies figcaption content.
 * Sync restores safe cached local references, keeps unmatched remote URLs valid, and offers explicit validated downloads into a configured Vault folder.
 
 ## Content Conversion And Synchronization
@@ -149,7 +154,7 @@ Forward publishing uses [src/wordpress-blocks.ts](../src/wordpress-blocks.ts) to
 
 Reverse conversion uses [src/wordpress-block-parser.ts](../src/wordpress-block-parser.ts) and [src/wordpress-to-markdown.ts](../src/wordpress-to-markdown.ts). Supported blocks become loss-aware Markdown, while unknown or structurally lossy source is preserved in inert protected regions instead of disappearing silently.
 
-The explicit synchronization workflow combines normalized remote snapshots, field-level diffs, guarded local transactions, bounded restore data, common baselines, six-state classification, and reviewed three-way merge. It supports title, body, slug, excerpt, status, comments, categories, WordPress tag names including spaces through `wpTags`, featured image, Focus Keyword, SEO Description, and Secondary Title without background overwrite. Obsidian `tags` and inline `#tags` remain local-only.
+The explicit synchronization workflow combines normalized remote snapshots, field-level diffs, guarded local transactions, bounded restore data, common baselines, six-state classification, and reviewed three-way merge. It supports title, body, slug, excerpt, status, comments, categories, WordPress tag names including spaces through `wpTags`, featured image, Focus Keyword, SEO Description, Secondary Title, and the complete Series placement as one atomic field without background overwrite. Obsidian `tags` and inline `#tags` remain local-only.
 
 ## Documentation
 
@@ -161,6 +166,23 @@ Current documentation and packaging references:
 * [Release checklist](release-checklist.md)
 * [WP Publisher Companion README](../wordpress-companion/README.md)
 
+## Post-P3 WP Title Layer Integration
+
+Status: Completed; automated checks, independent QA, and NAS plus production-site manual acceptance passed on 2026-08-29.
+
+The integration follows [the Series contract](wp-title-layer-series-integration-spec.md):
+
+* `secondaryTitle` uses canonical `wptl_subtitle` when the selected post type exposes it; legacy Companion `_secondary_title` is only a fallback on non-WPTL sites.
+* `series` stores a portable existing Series slug, and `seriesSeason` stores a stable Season `public_id`; target term IDs and internal Season keys never enter front matter or sync baselines.
+* Missing `series` preserves an existing remote placement, while an explicitly empty `series` removes the taxonomy relation and all dependent public metadata.
+* Series resolution, combination validation, and taxonomy/meta preparation happen before article creation or update. Series definitions and managed ordering are never created or modified by Publisher.
+* Publish, preview, Inspector, Pull, Diff, three-way merge, write-back, and baseline treat the complete Series placement as one atomic field.
+* A successful post response is followed by authenticated readback of the public Series placement and canonical subtitle. A mismatch preserves the post ID, records a partial outcome with the expected and actual state, and does not establish a strong baseline.
+* The first implementation supports normal `article` placement over WordPress core REST. XML-RPC Series, custom Series taxonomy keys, and advanced book roles remain blocked until they have explicit semantic capabilities and separate acceptance.
+* Existing advanced-role placements remain readable for Inspect and Pull even though Publisher cannot author them yet. Coordinated multi-site publishing of a seasoned Series is stopped before any write and must be reviewed one site at a time because Season labels remain site-owned.
+
+Companion 0.5.0 is a deliberately narrow compatibility release. It corrects subtitle-provider detection and improves capability reporting, but it does not implement or imitate a new authentication mechanism. The broader Transport/Auth proposal in [the transport refactor design](wp-publisher-companion-transport-refactor.md) remains future architecture work; no SSH transport, custom token, XML-RPC fallback, or automatic Wordfence change is included.
+
 ## Remaining Candidate Work
 
 These items are not scheduled, are not P3 leftovers, and require separate prioritization before becoming task cards:
@@ -170,6 +192,7 @@ These items are not scheduled, are not P3 leftovers, and require separate priori
 * Portable category presets for profiles or templates, plus optional editorial and SEO template fields with explicit precedence rules
 * Earlier preflight checks for unresolved local media, inconsistent post types, and taxonomy failures
 * Per-publish control over local media-link replacement instead of only the global setting
+* A separately scoped Transport/AuthProvider refactor, with any SSH/WP-CLI transport requiring its own security and hosting acceptance matrix
 
 ## Intentionally Deferred Scope
 
@@ -181,12 +204,13 @@ The current product deliberately excludes:
 * Silent conflict selection or last-write-wins behavior
 * Visual editing of every arbitrary third-party Gutenberg block in Obsidian
 * Binary media merge
+* XML-RPC Series publishing, custom WPTL Series taxonomy discovery, and advanced book-role publishing without an explicit WPTL semantic capability
 
 These exclusions are safety boundaries, not unfinished task cards. Any future change requires a new roadmap and explicit acceptance criteria.
 
 ## Release Acceptance
 
-Staged real-site acceptance for P3-1 through P3-7 passed on 2026-07-21, and the automated suite currently passes 204 tests with lint, TypeScript validation, and a production build. `npm run release:check` additionally verifies release identity and versions, documentation links, translation parity, command-map parity, required assets, and the companion package before a tag can produce a draft GitHub release.
+Staged real-site acceptance for P3-1 through P3-7 passed on 2026-07-21, and the automated suite currently passes 234 tests with lint, TypeScript validation, and a production build. `npm run release:check` additionally verifies release identity and versions, documentation links, translation parity, command-map parity, required assets, and the companion package before a tag can produce a draft GitHub release. Companion PHP syntax remains explicitly unverified on this Mac because PHP CLI is unavailable.
 
 The complete Application Password REST and XML-RPC workflow matrix remains the final release-level compatibility gate. miniOrange requires a credential smoke test when included in release claims. Each supported transport should exercise fetch, inspect, push, pull, merge, metadata, media, retry, and recovery behavior.
 
@@ -667,7 +691,7 @@ Scope:
 * Update metadata on already cached attachments without uploading duplicate files
 * Verify cached attachment IDs before reuse and automatically re-upload files deleted from WordPress
 * Keep image alt text and dimensions intact when local links are replaced with WordPress URLs
-* Create a standalone image figcaption only from an explicit caption; when an explicitly authored title is also present, show it in bold above the caption without exposing the filename-derived attachment title
+* Create a standalone image figcaption only from an explicit caption; attachment title remains media-library metadata and is never prepended to the figcaption
 
 Primary single-image example:
 
@@ -700,14 +724,14 @@ caption: =alt
 %%
 ```
 
-An explicit `altText` in the same block is used when present; otherwise the shorthand uses the Markdown image alt. If neither supplies Alt Text, no caption is created. Any other `caption` value remains literal. The filename stem remains the default WordPress attachment title but is not displayed in the figcaption unless the author explicitly supplies a title.
+An explicit `altText` in the same block is used when present; otherwise the shorthand uses the Markdown image alt. If neither supplies Alt Text, no caption is created. Any other `caption` value remains literal. The filename stem or explicit `title` remains the WordPress attachment title and is not displayed in the figcaption.
 
 Acceptance criteria:
 
 * A standard Markdown image alt reaches post content and WordPress attachment Alt Text but does not create a standalone image-block figcaption
 * An adjacent explicit caption reaches both attachment metadata and the editable image-block figcaption
 * `caption: =alt` reaches both caption destinations using the final explicit or inline Alt Text without changing the default behavior of ordinary images
-* A filename-derived attachment title stays in the media library and never appears as a bold figcaption title unless an explicit metadata or Markdown title requests it
+* Filename-derived and explicitly authored attachment titles stay in the media library and never appear as a bold figcaption title
 * Attachment title defaults to the image filename without its extension
 * Adjacent `wp-media` values override automatic values and also apply to a featured image that references the same Vault file
 * Re-publishing a cached image updates changed metadata without adding a duplicate attachment
@@ -1351,6 +1375,8 @@ Implementation snapshot (2026-07-21):
 * Empty values remain available in remote snapshots instead of being confused with an unsupported field
 * The publish modal, preview, inspector, pull review, sync workflow, baseline engine, and conflict resolver now track the subtitle as an independent twelfth field
 * Automated acceptance passed at that stage with 197 tests, TypeScript validation, translation parity, and a production build; real-site acceptance passed on 2026-07-21 with no observed defects
+
+Post-P3 compatibility follow-up (1.1.0): WP Title Layer's public compatibility API also defines `get_secondary_title()`, so function detection alone can misidentify WPTL as the legacy plugin. Publisher now gives the post type's canonical `wptl_subtitle` schema priority, and Companion 0.5.0 reports the provider explicitly while refusing legacy `_secondary_title` writes under WPTL. The original P3-7 bullets above remain as historical acceptance for legacy Secondary Title sites.
 
 ### P3 Completion Criteria
 

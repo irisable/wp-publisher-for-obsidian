@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
+import { importTypescriptModule } from './import-typescript-module.mjs';
+
+const {
   fillExcerptFromMetaDescription,
   normalizeWordPressTags,
   readEditorialFrontMatter,
@@ -9,7 +11,7 @@ import {
   readWordPressTagsFrontMatter,
   resolveWordPressTitle,
   updatePublishFrontMatter
-} from '../src/front-matter.ts';
+} = await importTypescriptModule(new URL('../src/front-matter.ts', import.meta.url));
 
 test('preserves unrelated front matter properties and migrates legacy sync keys', () => {
   const matter = {
@@ -114,6 +116,54 @@ test('copies published category slugs instead of retaining a mutable reference',
   assert.deepEqual(matter.categories, [ 'portable-slug' ]);
 });
 
+test('normalizes only an explicitly owned Series group during write-back', () => {
+  const owned = {
+    series: ' old-series ',
+    seriesSeason: '2',
+    seriesRole: 'APPENDIX',
+    seriesScope: 'series',
+    seriesLabel: ' stale ',
+    customProperty: true
+  };
+  updatePublishFrontMatter(owned, {
+    profileName: 'Local WordPress',
+    postId: '92',
+    postType: 'post',
+    seriesPlacement: {
+      kind: 'placement',
+      placement: {
+        series: 'new-series',
+        seriesSeason: 3,
+        seriesRole: 'article',
+        seriesScope: 'season',
+        seriesLabel: '15A'
+      }
+    }
+  });
+  assert.deepEqual(owned, {
+    series: 'new-series',
+    seriesSeason: 3,
+    seriesScope: 'season',
+    seriesLabel: '15A',
+    customProperty: true,
+    wpProfile: 'Local WordPress',
+    wpPostId: '92',
+    wpPostType: 'post'
+  });
+
+  const unowned = {
+    seriesSeason: 'legacy-value',
+    customProperty: true
+  };
+  updatePublishFrontMatter(unowned, {
+    profileName: 'Local WordPress',
+    postId: '93',
+    postType: 'post'
+  });
+  assert.equal(unowned.seriesSeason, 'legacy-value');
+  assert.equal(Object.prototype.hasOwnProperty.call(unowned, 'series'), false);
+});
+
 test('reads legacy sync keys while preferring namespaced keys', () => {
   assert.deepEqual(readPublishFrontMatter({
     profileName: 'Legacy profile',
@@ -137,7 +187,7 @@ test('reads canonical editorial properties and trims text values', () => {
     featuredImage: '  [[images/cover.jpg]]  ',
     focusKeyword: '  obsidian publishing  ',
     metaDescription: '  Search-focused copy.  ',
-    secondaryTitle: '  A clear subtitle  '
+    subtitle: '  A clear subtitle  '
   }), {
     slug: 'canonical-slug',
     excerpt: 'A concise summary.',
@@ -222,12 +272,18 @@ test('supports meta_description while preferring canonical metaDescription', () 
   });
 });
 
-test('supports secondary_title while preserving an explicit empty canonical value', () => {
+test('prefers subtitle while supporting both legacy subtitle property names', () => {
   assert.deepEqual(readEditorialFrontMatter({
-    secondaryTitle: '',
+    subtitle: '',
+    secondaryTitle: 'Compatibility subtitle',
     secondary_title: 'Compatibility subtitle'
   }), {
     secondaryTitle: ''
+  });
+  assert.deepEqual(readEditorialFrontMatter({
+    secondaryTitle: '  Camel case compatibility  '
+  }), {
+    secondaryTitle: 'Camel case compatibility'
   });
   assert.deepEqual(readEditorialFrontMatter({
     secondary_title: '  Compatibility subtitle  '

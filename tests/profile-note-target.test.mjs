@@ -87,6 +87,25 @@ test('uses the newest successful matching history target as a final fallback', (
   })), undefined);
 });
 
+test('reuses a post ID retained by a partial publish instead of creating a duplicate', () => {
+  const result = resolveProfileNoteTarget(options({
+    publishHistory: [ {
+      id: 'partial-history',
+      timestamp: '2030-01-04T00:00:00Z',
+      outcome: 'partial',
+      action: 'create',
+      notePath: 'Articles/example.md',
+      noteTitle: 'Example',
+      profileName: 'Production',
+      endpoint: 'https://example.com',
+      postType: 'post',
+      postId: '77',
+      warningCount: 1
+    } ]
+  }));
+  assert.equal(result?.postId, '77');
+});
+
 test('resolves every explicit stable profile target without using history', () => {
   const second = {
     id: 'wp-profile-second',

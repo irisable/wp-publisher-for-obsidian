@@ -14,6 +14,10 @@ import {
   isContentOnlyUpdate,
   PublishUpdateStrategy
 } from './publish-strategy';
+import {
+  describeSeriesIntentForUi,
+  type SeriesDefinition
+} from './series';
 
 export interface PublishPreviewSource {
   title: string;
@@ -25,6 +29,7 @@ interface PublishPreviewData {
   params: WordPressPostParams;
   source: PublishPreviewSource;
   categories: Term[];
+  seriesDefinitions: SeriesDefinition[];
 }
 
 export function openPublishPreviewModal(
@@ -180,6 +185,14 @@ class WpPublishPreviewModal extends AbstractModal {
         [ this.t('previewModal_postType'), params.postType ],
         [ this.t('publishModal_slug'), params.slug ],
         [ this.t('publishModal_secondaryTitle'), params.secondaryTitle ],
+        [
+          this.t('publishModal_sectionSeries'),
+          describeSeriesIntentForUi(
+            params.seriesPlacement,
+            (key, vars) => this.t(key, vars),
+            this.data.seriesDefinitions
+          )
+        ],
         [ this.t('publishModal_excerpt'), params.excerpt ],
         [ this.t('previewModal_categories'), categoryNames ],
         [ this.t('publishModal_tags'), params.tags.join(', ') ],

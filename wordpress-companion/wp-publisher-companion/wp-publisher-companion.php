@@ -3,7 +3,7 @@
  * Plugin Name: WP Publisher Companion
  * Plugin URI: https://github.com/irisable/wp-publisher-for-obsidian
  * Description: Lets WP Publisher read and update allowed metadata over authenticated REST and XML-RPC.
- * Version: 0.4.1
+ * Version: 0.5.0
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Author: Irisable
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-const WP_PUBLISHER_COMPANION_VERSION = '0.4.1';
+const WP_PUBLISHER_COMPANION_VERSION = '0.5.0';
 
 /**
  * Add the companion methods to WordPress XML-RPC.
@@ -100,6 +100,8 @@ function wp_publisher_companion_rest_capabilities() {
 			'rankMathSeoRead'    => wp_publisher_companion_has_rank_math(),
 			'secondaryTitle'     => wp_publisher_companion_has_secondary_title(),
 			'secondaryTitleRead' => wp_publisher_companion_has_secondary_title(),
+			'wpTitleLayer'       => wp_publisher_companion_has_wp_title_layer(),
+			'subtitleProvider'   => wp_publisher_companion_subtitle_provider(),
 			'mediaMetadata'      => true,
 		)
 	);
@@ -149,7 +151,7 @@ function wp_publisher_companion_rest_update_seo( $request ) {
 /** @param WP_REST_Request $request REST request. */
 function wp_publisher_companion_rest_get_secondary_title( $request ) {
 	if ( ! wp_publisher_companion_has_secondary_title() ) {
-		return new WP_Error( 'wp_publisher_secondary_title_missing', 'Secondary Title is not active.', array( 'status' => 409 ) );
+		return wp_publisher_companion_secondary_title_rest_error();
 	}
 	$post_id = absint( $request['id'] );
 	return rest_ensure_response(
@@ -162,7 +164,7 @@ function wp_publisher_companion_rest_get_secondary_title( $request ) {
 /** @param WP_REST_Request $request REST request. */
 function wp_publisher_companion_rest_update_secondary_title( $request ) {
 	if ( ! wp_publisher_companion_has_secondary_title() ) {
-		return new WP_Error( 'wp_publisher_secondary_title_missing', 'Secondary Title is not active.', array( 'status' => 409 ) );
+		return wp_publisher_companion_secondary_title_rest_error();
 	}
 	$parameters = $request->get_json_params();
 	if ( ! is_array( $parameters ) || ! array_key_exists( '_secondary_title', $parameters ) ) {
@@ -214,12 +216,71 @@ function wp_publisher_companion_has_rank_math() {
 }
 
 /**
- * Whether the Secondary Title plugin is available for post metadata updates.
+ * Whether WP Title Layer owns canonical subtitle metadata.
+ *
+ * @return bool
+ */
+function wp_publisher_companion_has_wp_title_layer() {
+	return defined( 'WPTL_VERSION' );
+}
+
+/**
+ * Report the canonical subtitle provider without exposing implementation values.
+ *
+ * @return string
+ */
+function wp_publisher_companion_subtitle_provider() {
+	if ( wp_publisher_companion_has_wp_title_layer() ) {
+		return 'wp-title-layer';
+	}
+	if ( function_exists( 'get_secondary_title' ) ) {
+		return 'legacy-secondary-title';
+	}
+	return 'none';
+}
+
+/**
+ * Whether the legacy Secondary Title plugin is available for metadata updates.
  *
  * @return bool
  */
 function wp_publisher_companion_has_secondary_title() {
-	return function_exists( 'get_secondary_title' );
+	return 'legacy-secondary-title' === wp_publisher_companion_subtitle_provider();
+}
+
+/**
+ * Explain why the legacy subtitle route is unavailable.
+ *
+ * @return WP_Error
+ */
+function wp_publisher_companion_secondary_title_rest_error() {
+	if ( wp_publisher_companion_has_wp_title_layer() ) {
+		return new WP_Error(
+			'wp_publisher_wp_title_layer_canonical',
+			'WP Title Layer is active. Use the post type core REST metadata field wptl_subtitle.',
+			array( 'status' => 409 )
+		);
+	}
+	return new WP_Error(
+		'wp_publisher_secondary_title_missing',
+		'Secondary Title is not active.',
+		array( 'status' => 409 )
+	);
+}
+
+/**
+ * Explain why the legacy XML-RPC subtitle method is unavailable.
+ *
+ * @return IXR_Error
+ */
+function wp_publisher_companion_secondary_title_xmlrpc_error() {
+	if ( wp_publisher_companion_has_wp_title_layer() ) {
+		return new IXR_Error(
+			409,
+			'WP Title Layer is active. Use the post type core REST metadata field wptl_subtitle.'
+		);
+	}
+	return new IXR_Error( 409, 'Secondary Title is not active.' );
 }
 
 /**
@@ -240,6 +301,8 @@ function wp_publisher_companion_get_capabilities( $args ) {
 		'rankMathSeoRead'    => wp_publisher_companion_has_rank_math(),
 		'secondaryTitle'     => wp_publisher_companion_has_secondary_title(),
 		'secondaryTitleRead' => wp_publisher_companion_has_secondary_title(),
+		'wpTitleLayer'       => wp_publisher_companion_has_wp_title_layer(),
+		'subtitleProvider'   => wp_publisher_companion_subtitle_provider(),
 		'mediaMetadata'      => true,
 	);
 }
@@ -351,7 +414,7 @@ function wp_publisher_companion_get_secondary_title( $args ) {
 		return new IXR_Error( 403, 'You are not allowed to edit this post.' );
 	}
 	if ( ! wp_publisher_companion_has_secondary_title() ) {
-		return new IXR_Error( 409, 'Secondary Title is not active.' );
+		return wp_publisher_companion_secondary_title_xmlrpc_error();
 	}
 
 	return array(
@@ -382,7 +445,7 @@ function wp_publisher_companion_update_secondary_title( $args ) {
 		return new IXR_Error( 403, 'You are not allowed to edit this post.' );
 	}
 	if ( ! wp_publisher_companion_has_secondary_title() ) {
-		return new IXR_Error( 409, 'Secondary Title is not active.' );
+		return wp_publisher_companion_secondary_title_xmlrpc_error();
 	}
 
 	$value = sanitize_text_field( (string) $args[4]['_secondary_title'] );

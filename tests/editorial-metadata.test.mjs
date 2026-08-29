@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
+import { importTypescriptModule } from './import-typescript-module.mjs';
+
+const {
   buildRankMathSeoMetadata,
   buildRestEditorialMetadata,
   buildSecondaryTitleMetadata,
@@ -10,7 +12,7 @@ import {
   RANK_MATH_DESCRIPTION_META,
   RANK_MATH_FOCUS_KEYWORD_META,
   SECONDARY_TITLE_META
-} from '../src/editorial-metadata.ts';
+} = await importTypescriptModule(new URL('../src/editorial-metadata.ts', import.meta.url));
 
 const values = {
   slug: '  editorial-slug  ',
@@ -27,6 +29,39 @@ test('builds WordPress core REST editorial fields', () => {
     excerpt: 'A concise summary.',
     featured_media: 42
   });
+});
+
+test('builds canonical WP Title Layer subtitle and atomic Series metadata', () => {
+  assert.deepEqual(buildRestEditorialMetadata({
+    secondaryTitle: '  Canonical subtitle  ',
+    secondaryTitleOwner: 'wptl',
+    resolvedSeriesPlacement: {
+      kind: 'placement',
+      termIds: [ 123 ],
+      meta: {
+        wptl_season_key: 'arrival',
+        wptl_series_role: 'article',
+        wptl_series_scope: '',
+        wptl_sequence_label: '15A'
+      }
+    }
+  }), {
+    wptl_series: [ 123 ],
+    meta: {
+      wptl_subtitle: 'Canonical subtitle',
+      wptl_season_key: 'arrival',
+      wptl_series_role: 'article',
+      wptl_series_scope: '',
+      wptl_sequence_label: '15A'
+    }
+  });
+});
+
+test('does not send a legacy subtitle through core REST metadata', () => {
+  assert.deepEqual(buildRestEditorialMetadata({
+    secondaryTitle: 'Legacy subtitle',
+    secondaryTitleOwner: 'legacy'
+  }), {});
 });
 
 test('builds WordPress.com metadata with Rank Math focus keyword', () => {

@@ -32,7 +32,8 @@ test('filters batch candidates by folder, search, and selected-only state', () =
   }), [ 'Drafts/Alpha draft.md' ]);
 });
 
-test('retries only failed or skipped notes', () => {
+test('retries partial, failed, or skipped notes', () => {
+  assert.equal(isRetryableBatchState('partial'), true);
   assert.equal(isRetryableBatchState('failure'), true);
   assert.equal(isRetryableBatchState('skipped'), true);
   assert.equal(isRetryableBatchState('success'), false);
@@ -42,13 +43,14 @@ test('retries only failed or skipped notes', () => {
 test('counts every visible queue state independently', () => {
   assert.deepEqual(
     countBatchPublishStates([
-      'queued', 'publishing', 'success', 'success', 'failure', 'skipped'
+      'queued', 'publishing', 'success', 'success', 'partial', 'failure', 'skipped'
     ]),
     {
       idle: 0,
       queued: 1,
       publishing: 1,
       success: 2,
+      partial: 1,
       failure: 1,
       skipped: 1
     }

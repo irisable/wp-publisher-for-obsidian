@@ -5,6 +5,11 @@ import type { MatterData } from './types';
 import type { RemotePostSnapshot, RemotePostTarget } from './remote-post';
 import type { PullField } from './sync-diff';
 import type { PublishHistoryAction } from './publish-history';
+import type {
+  ResolvedSeriesPlacement,
+  SeriesPlacementIntent
+} from './series';
+import type { SecondaryTitleOwner } from './editorial-metadata';
 
 export enum WordPressClientReturnCode {
   OK,
@@ -71,6 +76,12 @@ export interface WordPressPostParams {
   focusKeyword?: string;
   metaDescription?: string;
   secondaryTitle?: string;
+  /** Missing means a full update must preserve the remote Series placement. */
+  seriesPlacement?: SeriesPlacementIntent;
+  /** Target-specific WPTL values prepared immediately before the post request. */
+  resolvedSeriesPlacement?: ResolvedSeriesPlacement;
+  /** Prevent canonical WPTL subtitle and legacy Companion metadata from double-writing. */
+  secondaryTitleOwner?: SecondaryTitleOwner;
   /** Attachment metadata extracted from image-adjacent `wp-media` comments. */
   mediaMetadata?: import('./media-metadata').MediaMetadataMap;
 
@@ -103,6 +114,8 @@ export interface WordPressPublishResult {
   postId: string;
   categories: number[];
   warnings?: string[];
+  /** The post exists, but one or more reviewed publish components are incomplete. */
+  partialFailure?: boolean;
   /** Whether a strong post-publish readback established the new baseline. */
   syncBaselineUpdated?: boolean;
 }

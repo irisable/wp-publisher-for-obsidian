@@ -23,6 +23,7 @@ import {
   type WordPressToMarkdownResult
 } from './wordpress-to-markdown';
 import { openWithBrowser, showError } from './utils';
+import { describeSeriesIntentForUi } from './series';
 import {
   classifySyncState,
   createLocalSyncDocument,
@@ -60,7 +61,8 @@ const CAPABILITY_KEYS: Array<keyof RemotePostFieldCapabilities> = [
   'featuredMedia',
   'focusKeyword',
   'metaDescription',
-  'secondaryTitle'
+  'secondaryTitle',
+  'series'
 ];
 
 export function openRemoteInspectorModal(plugin: WordpressPlugin): void {
@@ -302,6 +304,7 @@ class WpRemoteInspectorModal extends AbstractModal {
         focusKeyword: this.snapshot.focusKeyword,
         metaDescription: this.snapshot.metaDescription,
         secondaryTitle: this.snapshot.secondaryTitle,
+        seriesPlacement: this.snapshot.seriesPlacement,
         capabilities: this.snapshot.capabilities
       }
     });
@@ -608,6 +611,19 @@ class WpRemoteInspectorModal extends AbstractModal {
       snapshot.secondaryTitle,
       snapshot.capabilities.secondaryTitle
     );
+    this.createMetadata(
+      metadataGrid,
+      this.t('remoteInspector_series'),
+      describeSeriesIntentForUi(
+        snapshot.capabilities.series
+          ? snapshot.seriesPlacement
+            ? { kind: 'placement', placement: snapshot.seriesPlacement }
+            : { kind: 'clear' }
+          : undefined,
+        (key, vars) => this.t(key, vars)
+      ),
+      snapshot.capabilities.series
+    );
 
     this.renderCapabilities(snapshot.capabilities);
 
@@ -876,7 +892,8 @@ class WpRemoteInspectorModal extends AbstractModal {
       featuredMedia: this.t('remoteInspector_featuredMedia'),
       focusKeyword: this.t('remoteInspector_focusKeyword'),
       metaDescription: this.t('remoteInspector_metaDescription'),
-      secondaryTitle: this.t('remoteInspector_secondaryTitle')
+      secondaryTitle: this.t('remoteInspector_secondaryTitle'),
+      series: this.t('remoteInspector_series')
     };
     return labels[key];
   }

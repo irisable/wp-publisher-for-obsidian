@@ -1,4 +1,4 @@
-import { SearchComponent, Setting } from 'obsidian';
+import { Notice, SearchComponent, Setting } from 'obsidian';
 import WordpressPlugin from './main';
 import { WordPressPostParams } from './wp-client';
 import { CommentStatus, PostStatus, PostType, PostTypeConst, Term } from './wp-api';
@@ -39,6 +39,18 @@ import {
   isContentOnlyUpdate,
   PublishUpdateStrategy
 } from './publish-strategy';
+import {
+  describeSeriesIntentForUi,
+  describeSeriesIssueForUi,
+  parseSeriesFrontMatter,
+  resolveSeriesPublishingAvailability,
+  SeriesPublishingAvailability,
+  SeriesRole,
+  SeriesStructure,
+  type SeriesDefinition,
+  type SeriesParseIssue,
+  type SeriesPublishingCatalog
+} from './series';
 
 
 const CATEGORY_SEARCH_THRESHOLD = 8;
@@ -54,6 +66,7 @@ export class WpPublishModal extends AbstractModal {
   private isSubmitting = false;
   private initialPublishingFields: TemplatePublishingFields | null = null;
   private selectedTemplateId = '';
+  private seriesIssues: SeriesParseIssue[] = [];
 
   constructor(
     readonly plugin: WordpressPlugin,
@@ -67,6 +80,7 @@ export class WpPublishModal extends AbstractModal {
     },
     private readonly publishTarget: PublishTarget,
     private readonly editorialCapabilities: EditorialMetadataCapabilities,
+    private readonly seriesCatalog: SeriesPublishingCatalog,
     private readonly publishingDefaults: ResolvedProfilePublishingDefaults,
     private readonly previewSource: PublishPreviewSource,
     private readonly onSubmit: (params: WordPressPostParams) => Promise<boolean>,
@@ -81,6 +95,8 @@ export class WpPublishModal extends AbstractModal {
       readEditorialFrontMatter(this.matterData)
     );
     const publishingControls = readPublishingControlFrontMatter(this.matterData);
+    const series = parseSeriesFrontMatter(this.matterData);
+    this.seriesIssues = [ ...series.issues ];
     if (!this.editorialCapabilities.focusKeyword) {
       delete editorialMetadata.focusKeyword;
     }
@@ -108,6 +124,7 @@ export class WpPublishModal extends AbstractModal {
       content: '',
       updateStrategy: PublishUpdateStrategy.Full,
       ...(existingPostId ? { postId: existingPostId } : {}),
+      ...(series.intent ? { seriesPlacement: series.intent } : {}),
       ...editorialMetadata
     };
     this.initialPublishingFields = {
@@ -449,6 +466,10 @@ export class WpPublishModal extends AbstractModal {
         })
       );
 
+    if (!contentOnly) {
+      this.renderSeriesSection(formEl, params);
+    }
+
     if (params.postType === PostTypeConst.Post) {
       const taxonomySection = this.createSection(
         formEl,
@@ -554,7 +575,8 @@ export class WpPublishModal extends AbstractModal {
               tags: [ ...params.tags ]
             },
             source: this.previewSource,
-            categories: this.categories.items
+            categories: this.categories.items,
+            seriesDefinitions: this.seriesCatalog.definitions
           });
         })
       )
@@ -564,6 +586,25 @@ export class WpPublishModal extends AbstractModal {
         .setCta()
         .onClick(async () => {
           if (this.isSubmitting) {
+            return;
+          }
+          if (this.seriesIssues.length > 0) {
+            new Notice(this.t('publishModal_seriesFixFrontMatter'));
+            return;
+          }
+          const seriesAvailability = resolveSeriesPublishingAvailability(
+            this.seriesCatalog,
+            params.postType
+          );
+          if (!contentOnly
+            && params.seriesPlacement !== undefined
+            && seriesAvailability !== SeriesPublishingAvailability.Available
+          ) {
+            new Notice(this.t(
+              seriesAvailability === SeriesPublishingAvailability.TransportUnsupported
+                ? 'error_seriesRequiresRestProfile'
+                : 'error_seriesPostTypeUnsupported'
+            ));
             return;
           }
           if (!contentOnly
@@ -604,6 +645,228 @@ export class WpPublishModal extends AbstractModal {
               button.buttonEl.classList.remove('is-loading');
             }
           }
+        })
+      );
+  }
+
+  private renderSeriesSection(
+    parent: HTMLElement,
+    params: WordPressPostParams
+  ): void {
+    const section = this.createSection(
+      parent,
+      this.t('publishModal_sectionSeries'),
+      this.t('publishModal_sectionSeriesDesc'),
+      'wp-publisher-series-card'
+    );
+    const current = params.seriesPlacement;
+    const availability = resolveSeriesPublishingAvailability(
+      this.seriesCatalog,
+      params.postType
+    );
+    const supported = availability === SeriesPublishingAvailability.Available;
+    const availabilityKey = supported
+      ? 'publishModal_seriesAvailable'
+      : availability === SeriesPublishingAvailability.TransportUnsupported
+        ? current
+          ? 'publishModal_seriesTransportBlocked'
+          : 'publishModal_seriesTransportUnavailable'
+        : current
+          ? 'publishModal_seriesPostTypeBlocked'
+          : 'publishModal_seriesPostTypeUnavailable';
+    section.createDiv({
+      cls: 'wp-publisher-capability-note '
+        + (supported ? 'is-available' : 'is-unavailable'),
+      text: this.t(availabilityKey)
+    });
+    if (this.seriesCatalog.error) {
+      section.createDiv({
+        cls: 'wp-publisher-series-error',
+        text: this.t('publishModal_seriesCatalogError', {
+          message: this.seriesCatalog.error
+        })
+      });
+    }
+    if (this.seriesIssues.length > 0) {
+      const errors = section.createDiv({ cls: 'wp-publisher-series-error' });
+      errors.createEl('strong', { text: this.t('publishModal_seriesFrontMatterError') });
+      errors.createEl('p', {
+        text: this.seriesIssues.map(item => describeSeriesIssueForUi(
+          item,
+          (key, vars) => this.t(key, vars)
+        )).join(' ')
+      });
+    }
+
+    section.createDiv({
+      cls: 'wp-publisher-series-current',
+      text: this.t('publishModal_seriesCurrent', {
+        value: describeSeriesIntentForUi(
+          current,
+          (key, vars) => this.t(key, vars),
+          this.seriesCatalog.definitions
+        )
+      })
+    });
+    const selector = section.createDiv({ cls: 'wp-publisher-series-selector' });
+    const choices: Array<{
+      id: string;
+      label: string;
+      definition?: SeriesDefinition;
+      action: 'keep' | 'clear' | 'select';
+    }> = [];
+    if (params.postId) {
+      choices.push({
+        id: '__keep__',
+        label: this.t('publishModal_seriesKeep'),
+        action: 'keep'
+      }, {
+        id: '__clear__',
+        label: this.t('publishModal_seriesClear'),
+        action: 'clear'
+      });
+    } else {
+      choices.push({
+        id: '__keep__',
+        label: this.t('publishModal_seriesNone'),
+        action: 'keep'
+      });
+    }
+    this.seriesCatalog.definitions
+      .slice()
+      .sort((left, right) => left.name.localeCompare(right.name))
+      .forEach(definition => choices.push({
+        id: definition.slug,
+        label: definition.name + ' (' + definition.slug + ')',
+        definition,
+        action: 'select'
+      }));
+
+    let search: SearchComponent | undefined;
+    if (choices.length > CATEGORY_SEARCH_THRESHOLD) {
+      const searchContainer = selector.createDiv({
+        cls: 'wp-publisher-category-search'
+      });
+      search = new SearchComponent(searchContainer)
+        .setPlaceholder(this.t('publishModal_searchSeries'));
+    }
+    const rows = selector.createDiv({ cls: 'wp-publisher-series-list' });
+    const selectedId = current?.kind === 'placement'
+      ? current.placement.series
+      : current?.kind === 'clear'
+        ? '__clear__'
+        : '__keep__';
+    const rendered: Array<{ choice: typeof choices[number], row: HTMLElement }> = [];
+    choices.forEach(choice => {
+      const row = rows.createEl('label', { cls: 'wp-publisher-series-row' });
+      rendered.push({ choice, row });
+      const radio = row.createEl('input', {
+        attr: { type: 'radio', name: 'wp-publisher-series' }
+      }) as HTMLInputElement;
+      radio.checked = choice.id === selectedId;
+      radio.disabled = choice.action !== 'keep' && !supported;
+      row.createSpan({ text: choice.label });
+      radio.addEventListener('change', () => {
+        if (!radio.checked) return;
+        this.seriesIssues = [];
+        if (choice.action === 'keep') {
+          delete params.seriesPlacement;
+        } else if (choice.action === 'clear') {
+          params.seriesPlacement = { kind: 'clear' };
+        } else if (choice.definition) {
+          const previous = params.seriesPlacement?.kind === 'placement'
+            && params.seriesPlacement.placement.series === choice.definition.slug
+            ? params.seriesPlacement.placement
+            : undefined;
+          params.seriesPlacement = {
+            kind: 'placement',
+            placement: {
+              series: choice.definition.slug,
+              seriesRole: SeriesRole.Article,
+              ...(previous?.seriesSeason !== undefined
+                ? { seriesSeason: previous.seriesSeason }
+                : {}),
+              ...(previous?.seriesLabel
+                ? { seriesLabel: previous.seriesLabel }
+                : {})
+            }
+          };
+        }
+        this.display(params);
+      });
+    });
+    search?.onChange(query => {
+      const normalized = query.trim().toLocaleLowerCase();
+      rendered.forEach(({ choice, row }) => {
+        row.classList.toggle(
+          'is-hidden',
+          Boolean(normalized) && !choice.label.toLocaleLowerCase().includes(normalized)
+        );
+      });
+    });
+
+    if (current?.kind !== 'placement') return;
+    const definition = this.seriesCatalog.definitions.find(
+      item => item.slug === current.placement.series
+    );
+    if (!definition) {
+      if (supported) {
+        section.createDiv({
+          cls: 'wp-publisher-series-note',
+          text: this.t('publishModal_seriesNotInCatalog', {
+            slug: current.placement.series
+          })
+        });
+      }
+      return;
+    }
+    if (current.placement.seriesRole !== SeriesRole.Article) {
+      section.createDiv({
+        cls: 'wp-publisher-series-error',
+        text: this.t('publishModal_seriesAdvancedUnsupported')
+      });
+    }
+    if (definition.structure === SeriesStructure.Seasoned) {
+      const seasonSetting = new Setting(section)
+        .setName(this.t('publishModal_seriesSeason'))
+        .setDesc(this.t('publishModal_seriesSeasonDesc'));
+      seasonSetting.addDropdown(dropdown => {
+        dropdown.addOption('', this.t('publishModal_seriesSeasonChoose'));
+        definition.seasons
+          .filter(season => season.publicId !== undefined)
+          .sort((left, right) => left.sort - right.sort)
+          .forEach(season => dropdown.addOption(
+            String(season.publicId),
+            season.label + ' (#' + season.publicId + ')'
+          ));
+        dropdown
+          .setValue(String(current.placement.seriesSeason ?? ''))
+          .onChange(value => {
+            const publicId = Number(value);
+            if (Number.isSafeInteger(publicId) && publicId > 0) {
+              current.placement.seriesSeason = publicId;
+            } else {
+              delete current.placement.seriesSeason;
+            }
+          });
+      });
+      if (definition.seasons.some(season => season.publicId === undefined)) {
+        section.createDiv({
+          cls: 'wp-publisher-series-note',
+          text: this.t('publishModal_seriesLegacySeason')
+        });
+      }
+    }
+    new Setting(section)
+      .setName(this.t('publishModal_seriesLabel'))
+      .setDesc(this.t('publishModal_seriesLabelDesc'))
+      .addText(text => text
+        .setPlaceholder('15A')
+        .setValue(current.placement.seriesLabel ?? '')
+        .onChange(value => {
+          const normalized = value.trim();
+          if (normalized) current.placement.seriesLabel = normalized;
+          else delete current.placement.seriesLabel;
         })
       );
   }

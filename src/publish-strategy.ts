@@ -12,7 +12,9 @@ const FIELD = {
   Tags: 'tags',
   FeaturedMedia: 'featuredMedia',
   FocusKeyword: 'focusKeyword',
-  MetaDescription: 'metaDescription'
+  MetaDescription: 'metaDescription',
+  SecondaryTitle: 'secondaryTitle',
+  Series: 'series'
 } as const;
 
 const PAGE_POST_TYPE = 'page';
@@ -71,9 +73,21 @@ function buildRestMergePayload(options: {
       : 'featured_media';
     payload[key] = editorialMetadata[key] ?? 0;
   }
+  if (fields.has(FIELD.Series)
+    && Object.prototype.hasOwnProperty.call(editorialMetadata, 'wptl_series')
+  ) {
+    payload.wptl_series = editorialMetadata.wptl_series;
+  }
   const seoKeys = new Set([
     ...(fields.has(FIELD.FocusKeyword) ? [ 'rank_math_focus_keyword' ] : []),
-    ...(fields.has(FIELD.MetaDescription) ? [ 'rank_math_description' ] : [])
+    ...(fields.has(FIELD.MetaDescription) ? [ 'rank_math_description' ] : []),
+    ...(fields.has(FIELD.SecondaryTitle) ? [ 'wptl_subtitle' ] : []),
+    ...(fields.has(FIELD.Series) ? [
+      'wptl_season_key',
+      'wptl_series_role',
+      'wptl_series_scope',
+      'wptl_sequence_label'
+    ] : [])
   ]);
   const meta = editorialMetadata.meta;
   if (meta && typeof meta === 'object' && !Array.isArray(meta)) {

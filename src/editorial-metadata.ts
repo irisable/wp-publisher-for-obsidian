@@ -1,6 +1,14 @@
+import {
+  WPTL_SERIES_TAXONOMY,
+  WPTL_SUBTITLE_META,
+  type ResolvedSeriesPlacement
+} from './series';
+
 export const RANK_MATH_FOCUS_KEYWORD_META = 'rank_math_focus_keyword';
 export const RANK_MATH_DESCRIPTION_META = 'rank_math_description';
 export const SECONDARY_TITLE_META = '_secondary_title';
+
+export type SecondaryTitleOwner = 'wptl' | 'legacy' | 'unsupported';
 
 export interface EditorialMetadataCapabilities {
   focusKeyword: boolean;
@@ -15,6 +23,8 @@ export interface EditorialMetadataValues {
   focusKeyword?: string;
   metaDescription?: string;
   secondaryTitle?: string;
+  secondaryTitleOwner?: SecondaryTitleOwner;
+  resolvedSeriesPlacement?: ResolvedSeriesPlacement;
   updateStrategy?: string;
   updateFields?: readonly string[];
 }
@@ -58,6 +68,25 @@ export function buildRestEditorialMetadata(
       && values.featuredMediaId !== undefined)
   ) {
     metadata.featured_media = values.featuredMediaId;
+  }
+  const meta: Record<string, string> = {};
+  const secondaryTitleProvided = Object.prototype.hasOwnProperty.call(
+    values,
+    'secondaryTitle'
+  );
+  if (values.secondaryTitleOwner === 'wptl'
+    && (secondaryTitleProvided || exactFieldSelected(values, 'secondaryTitle'))
+  ) {
+    meta[WPTL_SUBTITLE_META] = values.secondaryTitle?.trim() ?? '';
+  }
+  if (values.resolvedSeriesPlacement) {
+    metadata[WPTL_SERIES_TAXONOMY] = [
+      ...values.resolvedSeriesPlacement.termIds
+    ];
+    Object.assign(meta, values.resolvedSeriesPlacement.meta);
+  }
+  if (Object.keys(meta).length > 0) {
+    metadata.meta = meta;
   }
   return metadata;
 }

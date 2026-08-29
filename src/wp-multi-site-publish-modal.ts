@@ -15,9 +15,12 @@ import {
 import { getWordPressClient } from './wp-clients';
 import { WordPressClientReturnCode } from './wp-client';
 import { resolveProfileNoteTarget } from './profile-note-target';
-import { buildCoordinatedPostParams } from './coordinated-publish';
+import {
+  buildCoordinatedPostParams,
+  requiresSingleSiteSeriesReview
+} from './coordinated-publish';
 
-type RowState = 'idle' | 'queued' | 'publishing' | 'success' | 'failure';
+type RowState = 'idle' | 'queued' | 'publishing' | 'success' | 'partial' | 'failure';
 
 interface MultiSiteRow {
   profile: WpProfile;
@@ -27,6 +30,7 @@ interface MultiSiteRow {
   state: RowState;
   error?: string;
   warningCount?: number;
+  warnings?: string[];
 }
 
 export function openMultiSitePublishModal(plugin: WordpressPlugin): void {
@@ -45,6 +49,7 @@ class WpMultiSitePublishModal extends AbstractModal {
   private initializationError = '';
   private completedCount = 0;
   private runTotal = 0;
+  private preflightError = '';
 
   constructor(plugin: WordpressPlugin) {
     super(plugin);
@@ -135,6 +140,9 @@ class WpMultiSitePublishModal extends AbstractModal {
     } else {
       this.renderToolbar();
     }
+    if (this.preflightError) {
+      this.renderMessage(this.preflightError, true);
+    }
     const list = this.contentEl.createDiv({ cls: 'wp-publisher-multi-site-list' });
     this.rows.forEach(row => this.renderRow(list, row));
     this.renderFooter();
@@ -186,10 +194,11 @@ class WpMultiSitePublishModal extends AbstractModal {
 
   private renderSummary(): void {
     const successCount = this.rows.filter(row => row.state === 'success').length;
+    const partialCount = this.rows.filter(row => row.state === 'partial').length;
     const failureCount = this.rows.filter(row => row.state === 'failure').length;
     const summary = this.contentEl.createDiv({
       cls: 'wp-publisher-multi-site-summary'
-        + (failureCount > 0 ? ' has-failures' : ' is-complete')
+        + (failureCount > 0 || partialCount > 0 ? ' has-failures' : ' is-complete')
     });
     summary.createEl('strong', {
       text: this.running
@@ -199,6 +208,7 @@ class WpMultiSitePublishModal extends AbstractModal {
         })
         : this.t('multiSiteModal_resultSummary', {
           success: String(successCount),
+          partial: String(partialCount),
           failure: String(failureCount)
         })
     });
@@ -281,6 +291,12 @@ class WpMultiSitePublishModal extends AbstractModal {
         })
       });
     }
+    row.warnings?.forEach(warning => {
+      result.createDiv({
+        cls: 'wp-publisher-multi-site-warning-detail',
+        text: warning
+      });
+    });
     if (row.error) {
       result.createDiv({
         cls: 'wp-publisher-multi-site-error',
@@ -289,7 +305,7 @@ class WpMultiSitePublishModal extends AbstractModal {
     }
 
     const actions = result.createDiv({ cls: 'wp-publisher-multi-site-actions' });
-    if (row.state === 'failure' && !this.running) {
+    if ((row.state === 'failure' || row.state === 'partial') && !this.running) {
       const retry = actions.createEl('button', {
         text: this.t('multiSiteModal_retry')
       });
@@ -299,7 +315,7 @@ class WpMultiSitePublishModal extends AbstractModal {
     }
     if (row.target) {
       const edit = actions.createEl('button', {
-        cls: row.state === 'success' ? 'mod-cta' : '',
+        cls: row.state === 'success' || row.state === 'partial' ? 'mod-cta' : '',
         text: this.t('multiSiteModal_editPost')
       });
       edit.addEventListener('click', () => {
@@ -332,17 +348,19 @@ class WpMultiSitePublishModal extends AbstractModal {
       return;
     }
 
-    const failures = this.rows.filter(row => row.state === 'failure');
-    if (failures.length > 0) {
+    const retryable = this.rows.filter(
+      row => row.state === 'failure' || row.state === 'partial'
+    );
+    if (retryable.length > 0) {
       const retry = footer.createEl('button', {
         cls: 'mod-cta wp-publisher-multi-site-publish',
         text: this.t('multiSiteModal_retryFailed', {
-          count: String(failures.length)
+          count: String(retryable.length)
         })
       });
       retry.disabled = this.running;
       retry.addEventListener('click', () => {
-        void this.publishRows(failures);
+        void this.publishRows(retryable);
       });
     }
     const close = footer.createEl('button', {
@@ -371,6 +389,18 @@ class WpMultiSitePublishModal extends AbstractModal {
     if (this.running || rows.length === 0 || !this.sourceFile) {
       return;
     }
+    this.preflightError = '';
+    const updatesSeries = rows.some(row => (
+      !row.target || row.strategy !== PublishUpdateStrategy.ContentOnly
+    ));
+    if (rows.length > 1
+      && updatesSeries
+      && requiresSingleSiteSeriesReview(this.matter)
+    ) {
+      this.preflightError = this.t('multiSiteModal_seriesSeasonReviewRequired');
+      this.render();
+      return;
+    }
     this.running = true;
     this.hasRun = true;
     this.completedCount = 0;
@@ -379,6 +409,7 @@ class WpMultiSitePublishModal extends AbstractModal {
       row.state = 'queued';
       row.error = undefined;
       row.warningCount = undefined;
+      row.warnings = undefined;
     });
     this.render();
 
@@ -446,8 +477,9 @@ class WpMultiSitePublishModal extends AbstractModal {
       return;
     }
 
-    row.state = 'success';
+    row.state = result.data.partialFailure ? 'partial' : 'success';
     row.warningCount = result.data.warnings?.length;
+    row.warnings = result.data.warnings;
     row.target = findMultiSiteTarget(
       this.plugin.settings.multiSiteTargets,
       this.sourceFile.path,
@@ -474,6 +506,10 @@ class WpMultiSitePublishModal extends AbstractModal {
         return this.t('multiSiteModal_statusPublishing');
       case 'success':
         return this.t('multiSiteModal_statusSuccess', {
+          postId: row.target?.postId ?? ''
+        });
+      case 'partial':
+        return this.t('multiSiteModal_statusPartial', {
           postId: row.target?.postId ?? ''
         });
       case 'failure':

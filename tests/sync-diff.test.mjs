@@ -164,7 +164,84 @@ test('applies portable featured media and canonical SEO aliases', () => {
     featuredImage: 'https://example.com/cover.jpg',
     focusKeyword: 'remote keyword',
     metaDescription: 'Remote SEO description',
-    secondaryTitle: 'Remote subtitle'
+    secondary_title: 'Remote subtitle'
+  });
+
+  const newMatter = { custom: true };
+  const newDiffs = buildPullFieldDiffs({
+    noteRaw: 'Body',
+    matter: newMatter,
+    fallbackTitle: 'Filename',
+    remote: remote()
+  });
+  assert.deepEqual(applySelectedPullFields(
+    newMatter,
+    newDiffs,
+    new Set([ PullField.SecondaryTitle ])
+  ), {
+    custom: true,
+    subtitle: 'Remote subtitle'
+  });
+
+  const clearMatter = { secondaryTitle: 'Old subtitle' };
+  const clearDiffs = buildPullFieldDiffs({
+    noteRaw: 'Body',
+    matter: clearMatter,
+    fallbackTitle: 'Filename',
+    remote: remote({ secondaryTitle: '' })
+  });
+  assert.deepEqual(applySelectedPullFields(
+    clearMatter,
+    clearDiffs,
+    new Set([ PullField.SecondaryTitle ])
+  ), {
+    secondaryTitle: ''
+  });
+});
+
+test('pulls Series placement as one portable atomic field', () => {
+  const matter = {
+    series: 'old-series',
+    seriesSeason: 1,
+    seriesRole: 'intro',
+    seriesScope: 'series',
+    seriesLabel: 'Old label',
+    custom: true
+  };
+  const remotePost = remote({
+    seriesPlacement: {
+      series: 'new-series',
+      seriesSeason: 2,
+      seriesRole: 'article',
+      seriesScope: 'season',
+      seriesLabel: 'Part 4'
+    },
+    capabilities: {
+      ...remote().capabilities,
+      series: true
+    }
+  });
+  const diffs = buildPullFieldDiffs({
+    noteRaw: 'Body',
+    matter,
+    fallbackTitle: 'Filename',
+    remote: remotePost
+  });
+  const series = diffs.find(item => item.key === PullField.Series);
+  assert.equal(series?.available, true);
+  assert.equal(series?.changed, true);
+
+  const next = applySelectedPullFields(
+    matter,
+    diffs,
+    new Set([ PullField.Series ])
+  );
+  assert.deepEqual(next, {
+    series: 'new-series',
+    seriesSeason: 2,
+    seriesScope: 'season',
+    seriesLabel: 'Part 4',
+    custom: true
   });
 });
 

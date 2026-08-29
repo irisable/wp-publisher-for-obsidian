@@ -9,6 +9,7 @@ interface RestOptions {
 export interface RestResponse {
   status: number;
   json: unknown;
+  headers?: Record<string, string>;
 }
 
 export class RestClient {
@@ -78,8 +79,53 @@ export class RestClient {
     });
     return {
       status: response.status,
-      json: response.json
+      json: response.json,
+      headers: response.headers
     };
+  }
+
+  async httpOptionsResponse(
+    path: string,
+    options?: { headers: Record<string, string> }
+  ): Promise<RestResponse> {
+    let realPath = path;
+    if (realPath.startsWith('/')) {
+      realPath = realPath.substring(1);
+    }
+    const response = await requestUrl({
+      url: this.href + '/' + realPath,
+      method: 'OPTIONS',
+      headers: {
+        'content-type': 'application/json',
+        'user-agent': 'obsidian.md',
+        ...options?.headers
+      },
+      throw: false
+    });
+    return { status: response.status, json: response.json, headers: response.headers };
+  }
+
+  async httpPostResponse(
+    path: string,
+    body: unknown,
+    options?: { headers?: Record<string, string> }
+  ): Promise<RestResponse> {
+    let realPath = path;
+    if (realPath.startsWith('/')) {
+      realPath = realPath.substring(1);
+    }
+    const response = await requestUrl({
+      url: this.href + '/' + realPath,
+      method: 'POST',
+      headers: {
+        'user-agent': 'obsidian.md',
+        'content-type': 'application/json',
+        ...options?.headers
+      },
+      body: JSON.stringify(body),
+      throw: false
+    });
+    return { status: response.status, json: response.json, headers: response.headers };
   }
 
   async httpStatus(

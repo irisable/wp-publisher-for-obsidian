@@ -56,7 +56,7 @@ export function resolveProfileNoteTarget(
   const endpoint = normalizedEndpoint(profile.endpoint);
   const historyTarget = options.publishHistory
     .filter(entry =>
-      entry.outcome === 'success'
+      (entry.outcome === 'success' || entry.outcome === 'partial')
       && entry.notePath === notePath
       && entry.profileName === profile.name
       && normalizedEndpoint(entry.endpoint) === endpoint

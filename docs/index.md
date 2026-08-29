@@ -42,7 +42,7 @@ and password, then select the matching profile type in Obsidian.
 
 ### WordPress.com
 
-WordPress.com is not a supported connection type in 1.0 and is not offered when
+WordPress.com is not a supported connection type in the current release and is not offered when
 creating a profile. Existing profiles that already contain a saved token remain
 readable for migration compatibility, but this release cannot authorize,
 validate, or refresh that token.

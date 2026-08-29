@@ -193,7 +193,7 @@ test('preserves image alt text, dimensions, title, and caption metadata', () => 
 });
 
 test('normalizes legacy empty-alt image paragraphs into publishable images', () => {
-  const url = 'http://192.168.0.158:8088/wp-content/uploads/2026/07/surrender-is-not-passivity-3-2.png';
+  const url = 'https://wordpress.test/wp-content/uploads/2026/07/example-image.png';
   const values = [
     `![][${url}]`,
     `!\\[\\]\\[${url}\\]`

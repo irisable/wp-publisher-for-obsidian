@@ -1,6 +1,10 @@
 import type { MatterData } from './types';
 import type { CommentStatus, PostStatus, PostType } from './wp-api';
 import type { PublishHistoryAction } from './publish-history';
+import {
+  applySeriesIntentToMatter,
+  type SeriesPlacementIntent
+} from './series';
 
 export interface PublishFrontMatterMetadata {
   profileName: string;
@@ -8,6 +12,7 @@ export interface PublishFrontMatterMetadata {
   postType: PostType;
   categories?: readonly string[];
   tags?: readonly string[];
+  seriesPlacement?: SeriesPlacementIntent;
   lastPublishedAt?: string;
   lastPublishAction?: PublishHistoryAction;
 }
@@ -57,14 +62,11 @@ function optionalScalarText(value: unknown): string | undefined {
 
 function ownText(
   matter: MatterData,
-  canonical: string,
-  alias: string
+  ...keys: string[]
 ): { present: boolean, value?: string } {
-  const key = Object.prototype.hasOwnProperty.call(matter, canonical)
-    ? canonical
-    : Object.prototype.hasOwnProperty.call(matter, alias)
-      ? alias
-      : undefined;
+  const key = keys.find(candidate => (
+    Object.prototype.hasOwnProperty.call(matter, candidate)
+  ));
   if (!key || typeof matter[key] !== 'string') {
     return { present: false };
   }
@@ -181,7 +183,12 @@ export function readEditorialFrontMatter(
     ?? focusKeywordValue(matter.focus_keyword);
   const metaDescription = optionalText(matter.metaDescription)
     ?? optionalText(matter.meta_description);
-  const secondaryTitle = ownText(matter, 'secondaryTitle', 'secondary_title');
+  const secondaryTitle = ownText(
+    matter,
+    'subtitle',
+    'secondaryTitle',
+    'secondary_title'
+  );
 
   if (slug) metadata.slug = slug;
   if (excerpt) metadata.excerpt = excerpt;
@@ -229,6 +236,9 @@ export function updatePublishFrontMatter(
   }
   if (metadata.postType === 'post' && metadata.tags !== undefined) {
     matter.wpTags = [ ...metadata.tags ];
+  }
+  if (metadata.seriesPlacement !== undefined) {
+    applySeriesIntentToMatter(matter, metadata.seriesPlacement);
   }
 
   // These keys were owned by earlier plugin versions and are migrated on publish.

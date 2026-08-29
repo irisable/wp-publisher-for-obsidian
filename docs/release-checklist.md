@@ -38,6 +38,18 @@ npm run version:set -- 1.2.3
 - [ ] Run `php -l` on
   `wordpress-companion/wp-publisher-companion/wp-publisher-companion.php`.
 
+## Independent QA
+
+- [ ] Freeze the candidate worktree after the automated gates pass.
+- [ ] Ask an independent tester agent to review the fixed diff and test output
+  without editing files, changing WordPress state, or reusing the implementer's
+  conclusions as evidence.
+- [ ] Record findings by severity, resolve any release-blocking issue, and rerun
+  the automated gates before handing the candidate to the maintainer.
+- [ ] Give the maintainer a short acceptance checklist for the dedicated test
+  Vault and NAS WordPress test site. Mark PHP, browser, transport, destructive,
+  and environment-limited cases as untested rather than inferring success.
+
 ## Clean Installation
 
 - [ ] Install only `main.js`, `manifest.json`, and `styles.css` into a new test
@@ -54,7 +66,7 @@ npm run version:set -- 1.2.3
 
 Run the complete row for Application Password REST and XML-RPC. miniOrange
 shares the core REST workflow but still requires an authentication smoke test
-when it is included in release claims. WordPress.com is outside the 1.0 matrix.
+when it is included in release claims. WordPress.com is outside the current matrix.
 
 | Workflow | Application Password REST | XML-RPC | miniOrange |
 | --- | --- | --- | --- |
@@ -63,7 +75,8 @@ when it is included in release claims. WordPress.com is outside the 1.0 matrix.
 | Full and content-only update | [ ] | [ ] | [ ] |
 | Gutenberg and classic HTML output | [ ] | [ ] | [ ] |
 | Categories, tags, excerpt, slug, and featured image | [ ] | [ ] | [ ] |
-| Rank Math and Secondary Title capability fallback | [ ] | [ ] | [ ] |
+| Rank Math and legacy Secondary Title capability fallback | [ ] | [ ] | [ ] |
+| WP Title Layer canonical subtitle and portable Series placement | [ ] | N/A | [ ] |
 | Media reuse, stale-cache recovery, and metadata | [ ] | [ ] | [ ] |
 | Inspect and pull remote changes | [ ] | [ ] | [ ] |
 | Local-only push and remote-only pull | [ ] | [ ] | [ ] |
