@@ -12,6 +12,18 @@ const categories = [
   { id: '9', name: 'Notes', slug: 'notes', parent: 0 }
 ];
 
+test('deprecated categories are searchable, retain parent context, and remain visible when selected', () => {
+  const tree = buildCategoryTree([
+    { id: 2049, name: '陈年旧作', slug: 'old-years-old', parent: 0 },
+    { id: 2358, name: 'Web 2.0', slug: 'web-2-0', parent: 2049, deprecated: true }
+  ]);
+  assert.deepEqual([...getVisibleCategoryIds(tree, '')], ['2049']);
+  assert.deepEqual([...getVisibleCategoryIds(tree, 'Web')], ['2049', '2358']);
+  assert.deepEqual([...getVisibleCategoryIds(tree, '', [2358])], ['2049', '2358']);
+  assert.deepEqual([...getVisibleCategoryIds(tree, 'no match')], []);
+  assert.deepEqual(resolveCategoryIds('web-2-0', tree.map(x => x.category)), [2358]);
+});
+
 test('resolves a legacy category slug without splitting it into characters', () => {
   assert.deepEqual(resolveCategoryIds('live-christ-style', categories), [ 7 ]);
 });

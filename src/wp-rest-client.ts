@@ -58,6 +58,7 @@ import {
   type SeriesPublishingCatalog
 } from './series';
 import { PullField } from './sync-diff';
+import { fetchCategoryCatalog, fetchSelectedCategories } from './category-catalog';
 
 
 interface WpRestEndpoint {
@@ -129,7 +130,23 @@ export class WpRestClient extends AbstractWordPressClient {
     return  super.needLogin();
   }
 
-  private async inspectCorePostType(
+  private readonly corePostTypeRequests = new Map<PostType, Promise<CorePostTypeCapabilities>>();
+
+  private inspectCorePostType(
+    postType: PostType,
+    headers: Record<string, string>
+  ): Promise<CorePostTypeCapabilities> {
+    const cached = this.corePostTypeCapabilities.get(postType);
+    if (cached) return Promise.resolve(cached);
+    const pending = this.corePostTypeRequests.get(postType);
+    if (pending) return pending;
+    const request = this.fetchCorePostType(postType, headers)
+      .finally(() => this.corePostTypeRequests.delete(postType));
+    this.corePostTypeRequests.set(postType, request);
+    return request;
+  }
+
+  private async fetchCorePostType(
     postType: PostType,
     headers: Record<string, string>
   ): Promise<CorePostTypeCapabilities> {
@@ -181,7 +198,8 @@ export class WpRestClient extends AbstractWordPressClient {
 
   protected async getSeriesPublishingCatalog(
     certificate: WordPressAuthParams,
-    postTypes: readonly PostType[]
+    postTypes: readonly PostType[],
+    selectedSeries?: string | null
   ): Promise<SeriesPublishingCatalog> {
     if (this.context.remotePostApi !== 'core-rest') {
       return {
@@ -201,6 +219,10 @@ export class WpRestClient extends AbstractWordPressClient {
     const available = inspected.flatMap(result => (
       result.status === 'fulfilled' ? [ result.value ] : []
     ));
+    const failed = inspected.find(result => result.status === 'rejected');
+    if (failed?.status === 'rejected') {
+      throw failed.reason instanceof Error ? failed.reason : new Error(String(failed.reason));
+    }
     const supportedPostTypes = available
       .filter(item => item.capability.wptlSeriesMeta
         && item.capability.taxonomies.includes(WPTL_SERIES_TAXONOMY))
@@ -208,7 +230,7 @@ export class WpRestClient extends AbstractWordPressClient {
     const subtitlePostTypes = available
       .filter(item => item.capability.wptlSubtitle)
       .map(item => item.postType);
-    if (supportedPostTypes.length === 0) {
+    if (supportedPostTypes.length === 0 || selectedSeries === null) {
       return {
         transport: 'rest',
         definitions: [],
@@ -221,7 +243,8 @@ export class WpRestClient extends AbstractWordPressClient {
       for (let page = 1; page <= 1000; page += 1) {
         const response = await this.client.httpGetResponse(
           'wp-json/wp/v2/' + WPTL_SERIES_TAXONOMY
-            + '?per_page=100&context=edit&page=' + page,
+            + '?per_page=100&context=edit&page=' + page
+            + (selectedSeries !== undefined ? '&slug=' + encodeURIComponent(selectedSeries) : ''),
           { headers }
         );
         if (response.status < 200 || response.status >= 300) {
@@ -239,8 +262,9 @@ export class WpRestClient extends AbstractWordPressClient {
         }
         definitions.push(...data.map(parseSeriesDefinition));
         const totalPages = Number(restResponseHeader(response, 'x-wp-totalpages'));
-        if ((Number.isSafeInteger(totalPages) && page >= totalPages)
-          || (!Number.isSafeInteger(totalPages) && data.length < 100)
+        const hasTotal = Number.isSafeInteger(totalPages) && totalPages > 0;
+        if ((hasTotal && page >= totalPages)
+          || (!hasTotal && data.length < 100)
         ) {
           break;
         }
@@ -732,12 +756,46 @@ export class WpRestClient extends AbstractWordPressClient {
   }
 
   async getCategories(certificate: WordPressAuthParams): Promise<Term[]> {
-    const data = await this.client.httpGet(
-      getUrl(this.context.endpoints?.getCategories, 'wp-json/wp/v2/categories?per_page=100'),
-      {
-        headers: this.context.getHeaders(certificate)
+    const headers = this.context.getHeaders(certificate);
+    // WordPress.com uses a different collection contract.
+    if (this.context.endpoints?.getCategories) {
+      const data = await this.client.httpGet(getUrl(this.context.endpoints.getCategories, ''), { headers });
+      return this.context.responseParser.toTerms(data);
+    }
+    return fetchCategoryCatalog(async page => {
+      const response = await this.client.httpGetResponse(
+        `wp-json/wp/v2/categories?per_page=100&page=${page}&irisable_category_view=all`, { headers });
+      if (response.status < 200 || response.status >= 300 || !Array.isArray(response.json)) {
+        throw new Error(`WordPress category page ${page} could not be loaded (HTTP ${response.status}).`);
+      }
+      const total = Number(restResponseHeader(response, 'x-wp-totalpages'));
+      return {
+        items: this.context.responseParser.toTerms(response.json),
+        totalPages: Number.isInteger(total) && total > 0 ? total : undefined
+      };
+    });
+  }
+
+  protected async getSelectedCategories(
+    certificate: WordPressAuthParams,
+    values: readonly (string | number)[]
+  ): Promise<Term[]> {
+    if (this.context.endpoints?.getCategories) return this.getCategories(certificate);
+    const headers = this.context.getHeaders(certificate);
+    return fetchSelectedCategories(values, filter => fetchCategoryCatalog(async page => {
+      const query = new URLSearchParams({
+        per_page: '100', page: String(page), irisable_category_view: 'all', ...filter
       });
-    return this.context.responseParser.toTerms(data);
+      const response = await this.client.httpGetResponse('wp-json/wp/v2/categories?' + query, { headers });
+      if (response.status < 200 || response.status >= 300 || !Array.isArray(response.json)) {
+        throw new Error(`WordPress categories could not be loaded (HTTP ${response.status}).`);
+      }
+      const total = Number(restResponseHeader(response, 'x-wp-totalpages'));
+      return {
+        items: this.context.responseParser.toTerms(response.json),
+        totalPages: Number.isInteger(total) && total > 0 ? total : undefined
+      };
+    }));
   }
 
   async getPostTypes(certificate: WordPressAuthParams): Promise<PostType[]> {
@@ -1245,6 +1303,7 @@ function parseTerm(response: unknown, idKey: 'id' | 'ID'): Term {
     taxonomy: typeof data.taxonomy === 'string' ? data.taxonomy : '',
     description: typeof data.description === 'string' ? data.description : '',
     ...(isIdentifier(parent) ? { parent } : {}),
+    ...(data.irisable_deprecated === true ? { deprecated: true } : {}),
     count: typeof data.count === 'number' ? data.count : 0
   };
 }

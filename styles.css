@@ -293,6 +293,24 @@
   min-width: 0;
 }
 
+.wp-publisher-catalog-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+  color: var(--text-muted);
+  font-size: var(--font-smallest);
+}
+
+.wp-publisher-catalog-status:empty {
+  display: none;
+}
+
+.wp-publisher-catalog-browse.is-hidden {
+  display: none;
+}
+
 .wp-publisher-category-search,
 .wp-publisher-category-search input {
   width: 100%;

@@ -50,8 +50,7 @@ import {
 } from './media-cache';
 import {
   resolveProfilePublishingDefaults,
-  resolvePublishingTags,
-  selectAvailablePostType
+  resolvePublishingTags
 } from './profile-publishing-defaults';
 import {
   buildUploadedImageReference,
@@ -146,6 +145,13 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     certificate: WordPressAuthParams
   ): Promise<Term[]>;
 
+  protected getSelectedCategories(
+    certificate: WordPressAuthParams,
+    _values: readonly (string | number)[]
+  ): Promise<Term[]> {
+    return this.getCategories(certificate);
+  }
+
   abstract getPostTypes(
     certificate: WordPressAuthParams
   ): Promise<PostType[]>;
@@ -187,7 +193,8 @@ export abstract class AbstractWordPressClient implements WordPressClient {
 
   protected async getSeriesPublishingCatalog(
     _certificate: WordPressAuthParams,
-    _postTypes: readonly PostType[]
+    _postTypes: readonly PostType[],
+    _selectedSeries?: string | null
   ): Promise<SeriesPublishingCatalog> {
     return {
       transport: 'unsupported',
@@ -211,7 +218,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     }
   }
 
-  private async getAuth(reuseSession = false): Promise<WordPressAuthParams> {
+  private async getAuth(reuseSession = false, isCancelled = () => false): Promise<WordPressAuthParams> {
     if (reuseSession && this.sessionAuth) {
       return { ...this.sessionAuth };
     }
@@ -238,6 +245,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
           showError(error);
         }
       }
+      if (isCancelled()) throw new Error(this.plugin.i18n.t('error_loginCancelled'));
       if (!authenticated) {
         const result = await openLoginModal(this.plugin, this.profile, async (auth) => {
           const authResult = await this.validateUser(auth);
@@ -1160,7 +1168,6 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         ...(options.historyAction ? { historyAction: options.historyAction } : {})
       };
 
-      const auth = await this.getAuth(execution.reuseSession);
       const source = options.sourceSnapshot
         ?? await processFile(file, this.plugin.app);
       const title = options.sourceSnapshot?.title ?? file.basename;
@@ -1194,16 +1201,15 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         commentStatus: this.plugin.settings.defaultCommentStatus
       });
 
-      const categories = await this.getCategories(auth);
-      const selectedCategories = resolveCategoryIds(
-        matterData.categories
+      const categoryValue = matterData.categories
           ?? defaultPostParams?.categories
-          ?? this.profile.lastSelectedCategories,
-        categories
-      );
+          ?? this.profile.lastSelectedCategories;
       let postParams: WordPressPostParams;
       let result: WordPressClientResult<WordPressPublishResult> | undefined;
       if (defaultPostParams) {
+        const auth = await this.getAuth(execution.reuseSession);
+        const categories = await this.getCategories(auth);
+        const selectedCategories = resolveCategoryIds(categoryValue, categories);
         const preparedTarget = await prepareTarget();
         if (!preparedTarget) {
           return this.cancelledPublishResult();
@@ -1243,23 +1249,35 @@ export abstract class AbstractWordPressClient implements WordPressClient {
           execution
         });
       } else {
-        const postTypes = await this.getPostTypes(auth);
-        if (postTypes.length === 0) {
-          postTypes.push(PostTypeConst.Post);
-        }
-        const selectedPostType = selectAvailablePostType(
-          publishMetadata.postType ?? profileDefaults.postType,
-          postTypes
-        );
-        const seriesCatalog = await this.getSeriesPublishingCatalog(auth, postTypes);
+        const selectedPostType = publishMetadata.postType ?? profileDefaults.postType;
+        const postTypes = [ ...new Set([ selectedPostType, PostTypeConst.Post, PostTypeConst.Page ]) ];
+        let authRequest: Promise<WordPressAuthParams> | undefined;
+        let modalClosed = false;
+        const getModalAuth = () => {
+          authRequest ??= this.getAuth(execution.reuseSession, () => modalClosed).catch(error => {
+            authRequest = undefined;
+            throw error;
+          });
+          return authRequest;
+        };
         result = await new Promise(resolve => {
           const publishModal = new WpPublishModal(
             this.plugin,
-            { items: categories, selected: selectedCategories },
+            categoryValue,
             { items: postTypes, selected: selectedPostType },
             publishTarget,
-            this.getEditorialMetadataCapabilities(selectedPostType),
-            seriesCatalog,
+            {
+              loadPostTypes: async () => this.getPostTypes(await getModalAuth()),
+              loadCategories: async values => values
+                ? this.getSelectedCategories(await getModalAuth(), values)
+                : this.getCategories(await getModalAuth()),
+              loadSeries: async (postType, selectedSeries) => {
+                const catalog = await this.getSeriesPublishingCatalog(
+                  await getModalAuth(), [ postType ], selectedSeries
+                );
+                return { catalog, editorial: this.getEditorialMetadataCapabilities(postType) };
+              }
+            },
             profileDefaults,
             {
               title: typeof matterData.title === 'string'
@@ -1269,6 +1287,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
               sourcePath: file.path
             },
             async (postParams: WordPressPostParams) => {
+              const auth = await getModalAuth();
               const preparedTarget = await prepareTarget();
               if (!preparedTarget) {
                 return false;
@@ -1284,15 +1303,15 @@ export abstract class AbstractWordPressClient implements WordPressClient {
                 const r = await this.publishWithHistory({
                   auth,
                   postParams,
-                  categoryTerms: categories,
+                  categoryTerms: publishModal.categoryTerms,
                   notePath: file.path,
                   noteTitle: title,
                   localSource: { content, matter: matterData },
                   execution
                 });
                 if (r.code === WordPressClientReturnCode.OK) {
-                  publishModal.close();
                   resolve(r);
+                  publishModal.close();
                   return true;
                 }
               } catch (error) {
@@ -1306,7 +1325,11 @@ export abstract class AbstractWordPressClient implements WordPressClient {
               }
               return false;
             },
-            matterData);
+            matterData,
+            () => {
+              modalClosed = true;
+              resolve(this.cancelledPublishResult());
+            });
           publishModal.open();
         });
       }

@@ -51,9 +51,18 @@ import {
   type SeriesParseIssue,
   type SeriesPublishingCatalog
 } from './series';
+import { resolveCategoryIds } from './categories';
+import { PublishPanelResource } from './publish-panel-resource';
 
 
-const CATEGORY_SEARCH_THRESHOLD = 8;
+export interface PublishModalDataSource {
+  loadPostTypes: () => Promise<PostType[]>;
+  loadCategories: (selected?: readonly (string | number)[]) => Promise<Term[]>;
+  loadSeries: (postType: PostType, selectedSeries?: string | null) => Promise<{
+    catalog: SeriesPublishingCatalog;
+    editorial: EditorialMetadataCapabilities;
+  }>;
+}
 
 /**
  * WordPress publish modal.
@@ -67,24 +76,47 @@ export class WpPublishModal extends AbstractModal {
   private initialPublishingFields: TemplatePublishingFields | null = null;
   private selectedTemplateId = '';
   private seriesIssues: SeriesParseIssue[] = [];
+  private readonly categoryResource = new PublishPanelResource<Term[]>();
+  private readonly typeResource = new PublishPanelResource<PostType[]>();
+  private readonly seriesResource = new PublishPanelResource<Awaited<ReturnType<PublishModalDataSource['loadSeries']>>>();
+  private readonly categories = { items: [] as Term[], selected: [] as number[] };
+  private editorialCapabilities: EditorialMetadataCapabilities = {
+    focusKeyword: false, metaDescription: false, secondaryTitle: false
+  };
+  private seriesCatalog: SeriesPublishingCatalog = {
+    transport: 'unsupported', definitions: [], supportedPostTypes: [], subtitlePostTypes: []
+  };
+  private categoryExpanded = false;
+  private categoriesInitialized = false;
+  private missingCategories: Array<string | number> = [];
+  private categoryQuery = '';
+  private seriesExpanded = false;
+  private seriesQuery = '';
+  private loadedSeriesType = '';
+  private seriesReadyType = '';
+  private closed = false;
+  private refreshCategories: () => void = () => {};
+  private refreshSeries: () => void = () => {};
+  private refreshTypes: () => void = () => {};
+  private refreshSubmit: () => void = () => {};
+  private refreshEditorial: Array<() => void> = [];
+
+  get categoryTerms(): Term[] { return this.categories.items; }
 
   constructor(
     readonly plugin: WordpressPlugin,
-    private readonly categories: {
-      items: Term[],
-      selected: number[]
-    },
+    private readonly categoryValue: unknown,
     private readonly postTypes: {
       items: PostType[],
       selected: PostType
     },
     private readonly publishTarget: PublishTarget,
-    private readonly editorialCapabilities: EditorialMetadataCapabilities,
-    private readonly seriesCatalog: SeriesPublishingCatalog,
+    private readonly dataSource: PublishModalDataSource,
     private readonly publishingDefaults: ResolvedProfilePublishingDefaults,
     private readonly previewSource: PublishPreviewSource,
     private readonly onSubmit: (params: WordPressPostParams) => Promise<boolean>,
     private readonly matterData: MatterData,
+    private readonly onDismiss: () => void,
   ) {
     super(plugin);
   }
@@ -97,15 +129,6 @@ export class WpPublishModal extends AbstractModal {
     const publishingControls = readPublishingControlFrontMatter(this.matterData);
     const series = parseSeriesFrontMatter(this.matterData);
     this.seriesIssues = [ ...series.issues ];
-    if (!this.editorialCapabilities.focusKeyword) {
-      delete editorialMetadata.focusKeyword;
-    }
-    if (!this.editorialCapabilities.metaDescription) {
-      delete editorialMetadata.metaDescription;
-    }
-    if (!this.editorialCapabilities.secondaryTitle) {
-      delete editorialMetadata.secondaryTitle;
-    }
     const existingPostId = (
       this.publishTarget.mode === PublishTargetMode.Update
       || this.publishTarget.mode === PublishTargetMode.MissingProfile
@@ -135,9 +158,49 @@ export class WpPublishModal extends AbstractModal {
     };
 
     this.display(params);
+    this.categoryResource.onChange = () => {
+      if (this.categoryResource.status === 'ready' && this.categoryResource.value) {
+        this.categories.items = this.categoryResource.value;
+        if (!this.categoriesInitialized) {
+          const values = this.initialCategoryValues();
+          params.categories = resolveCategoryIds(values, this.categories.items, []);
+          this.missingCategories = values.filter(value => !this.categories.items.some(term =>
+            term.id === String(value) || term.slug === String(value) || term.name === String(value)
+          ));
+          this.categoriesInitialized = true;
+        }
+      }
+      this.refreshCategories();
+      this.refreshSubmit();
+    };
+    this.typeResource.onChange = () => {
+      if (this.typeResource.status === 'ready') {
+        this.postTypes.items = this.typeResource.value?.length
+          ? this.typeResource.value : [ PostTypeConst.Post ];
+      }
+      this.refreshTypes();
+      this.refreshSubmit();
+    };
+    this.seriesResource.onChange = () => {
+      if (this.seriesResource.status === 'ready' && this.seriesResource.value) {
+        this.seriesCatalog = this.seriesResource.value.catalog;
+        this.editorialCapabilities = this.seriesResource.value.editorial;
+        this.seriesReadyType = this.loadedSeriesType;
+      }
+      this.refreshSeries();
+      this.refreshEditorial.forEach(refresh => refresh());
+      this.refreshSubmit();
+    };
+    void this.typeResource.load(this.dataSource.loadPostTypes);
+    this.loadCategories(params, true);
+    this.loadSeries(params);
   }
 
   onClose() {
+    this.closed = true;
+    this.categoryResource.close();
+    this.typeResource.close();
+    this.seriesResource.close();
     const { contentEl } = this;
     contentEl.empty();
     this.isSubmitting = false;
@@ -148,6 +211,7 @@ export class WpPublishModal extends AbstractModal {
       this.dateInputMask.destroy();
       this.dateInputMask = null;
     }
+    this.onDismiss();
   }
 
   private display(params: WordPressPostParams): void {
@@ -162,10 +226,26 @@ export class WpPublishModal extends AbstractModal {
     }
     this.scheduledInputEl = null;
     this.scheduledFeedbackEl = null;
+    this.refreshEditorial = [];
+    this.refreshCategories = () => {};
+    this.refreshSeries = () => {};
+    this.refreshTypes = () => {};
     contentEl.empty();
 
     this.createHeader(this.t('publishModal_title'));
     this.createPublishTargetStatus();
+    const connectionStatus = contentEl.createDiv({ cls: 'wp-publisher-catalog-status' });
+    const refreshTypeStatus = () => {
+      connectionStatus.empty();
+      this.renderResourceStatus(connectionStatus, this.typeResource, () => {
+        void this.typeResource.load(this.dataSource.loadPostTypes);
+      });
+      if (this.typeResource.status === 'ready' && !this.postTypes.items.includes(params.postType)) {
+        connectionStatus.createDiv({ text: this.t('publishModal_postTypeMissing', { value: params.postType }) });
+      }
+    };
+    this.refreshTypes = refreshTypeStatus;
+    refreshTypeStatus();
 
     const formEl = contentEl.createDiv({ cls: 'wp-publisher-form' });
     const publishSection = this.createSection(
@@ -234,6 +314,7 @@ export class WpPublishModal extends AbstractModal {
               this.postTypes.items,
               publishMetadata.postType
             ));
+            this.loadSeries(params);
             this.display(params);
           });
       });
@@ -354,13 +435,19 @@ export class WpPublishModal extends AbstractModal {
       new Setting(publishSection)
         .setName(this.t('publishModal_postType'))
         .addDropdown((dropdown) => {
-          this.postTypes.items.forEach(it => {
-            dropdown.addOption(it, it);
-          });
+          this.refreshTypes = () => {
+            refreshTypeStatus();
+            dropdown.selectEl.empty();
+            [ ...new Set([ params.postType, ...this.postTypes.items ]) ]
+              .forEach(it => dropdown.addOption(it, it));
+            dropdown.setValue(params.postType).setDisabled(this.typeResource.status !== 'ready');
+          };
+          this.refreshTypes();
           dropdown
             .setValue(params.postType)
             .onChange((value) => {
               params.postType = value as PostType;
+              this.loadSeries(params);
               this.display(params);
             });
         });
@@ -382,20 +469,24 @@ export class WpPublishModal extends AbstractModal {
           params.slug = value;
         })
       );
-    new Setting(contentSection)
+    const subtitleSetting = new Setting(contentSection)
       .setName(this.t('publishModal_secondaryTitle'))
       .setDesc(this.t(this.editorialCapabilities.secondaryTitle
         ? 'publishModal_secondaryTitleDesc'
         : 'publishModal_secondaryTitleUnsupported'
       ))
-      .addText(text => text
-        .setPlaceholder(this.t('publishModal_secondaryTitlePlaceholder'))
-        .setValue(params.secondaryTitle ?? '')
-        .setDisabled(!this.editorialCapabilities.secondaryTitle)
-        .onChange(value => {
-          params.secondaryTitle = value;
-        })
-      );
+      .addText(text => {
+        text.setPlaceholder(this.t('publishModal_secondaryTitlePlaceholder'))
+          .setValue(params.secondaryTitle ?? '')
+          .onChange(value => { params.secondaryTitle = value; });
+        const refresh = () => {
+          text.setDisabled(this.seriesReadyType !== params.postType || !this.editorialCapabilities.secondaryTitle);
+          subtitleSetting.setDesc(this.t(this.seriesReadyType !== params.postType
+            ? 'publishModal_catalogLoading' : this.editorialCapabilities.secondaryTitle
+              ? 'publishModal_secondaryTitleDesc' : 'publishModal_secondaryTitleUnsupported'));
+        };
+        this.refreshEditorial.push(refresh);
+      });
     const excerptSetting = new Setting(contentSection)
       .setName(this.t('publishModal_excerpt'))
       .setDesc(this.t('publishModal_excerptDesc'));
@@ -426,13 +517,14 @@ export class WpPublishModal extends AbstractModal {
       this.t('publishModal_sectionSeoDesc'),
       'wp-publisher-seo-card'
     );
-    const seoAvailable = this.editorialCapabilities.focusKeyword
-      && this.editorialCapabilities.metaDescription;
-    seoSection.createDiv({
-      cls: `wp-publisher-capability-note ${seoAvailable ? 'is-available' : 'is-unavailable'}`,
-      text: this.t(seoAvailable
-        ? 'publishModal_rankMathAvailable'
-        : 'publishModal_rankMathUnavailable')
+    const seoStatus = seoSection.createDiv({ cls: 'wp-publisher-capability-note' });
+    this.refreshEditorial.push(() => {
+      const ready = this.seriesReadyType === params.postType;
+      const available = this.editorialCapabilities.focusKeyword && this.editorialCapabilities.metaDescription;
+      seoStatus.setText(this.t(!ready ? 'publishModal_catalogLoading'
+        : available ? 'publishModal_rankMathAvailable' : 'publishModal_rankMathUnavailable'));
+      seoStatus.classList.toggle('is-available', ready && available);
+      seoStatus.classList.toggle('is-unavailable', ready && !available);
     });
     const metaDescriptionSetting = new Setting(seoSection)
       .setName(this.t('publishModal_metaDescription'))
@@ -445,26 +537,35 @@ export class WpPublishModal extends AbstractModal {
       text
         .setPlaceholder(this.t('publishModal_metaDescriptionPlaceholder'))
         .setValue(params.metaDescription ?? '')
-        .setDisabled(!this.editorialCapabilities.metaDescription)
         .onChange(value => {
           params.metaDescription = value;
         });
       text.inputEl.rows = 3;
+      this.refreshEditorial.push(() => {
+        text.setDisabled(this.seriesReadyType !== params.postType || !this.editorialCapabilities.metaDescription);
+        metaDescriptionSetting.setDesc(this.t(this.seriesReadyType !== params.postType
+          ? 'publishModal_catalogLoading' : this.editorialCapabilities.metaDescription
+            ? 'publishModal_metaDescriptionDesc' : 'publishModal_metaDescriptionUnsupported'));
+      });
     });
-    new Setting(seoSection)
+    const keywordSetting = new Setting(seoSection)
       .setName(this.t('publishModal_focusKeyword'))
       .setDesc(this.t(this.editorialCapabilities.focusKeyword
         ? 'publishModal_focusKeywordDesc'
         : 'publishModal_focusKeywordUnsupported'
       ))
-      .addText(text => text
-        .setPlaceholder(this.t('publishModal_focusKeywordPlaceholder'))
-        .setValue(params.focusKeyword ?? '')
-        .setDisabled(!this.editorialCapabilities.focusKeyword)
-        .onChange(value => {
-          params.focusKeyword = value;
-        })
-      );
+      .addText(text => {
+        text.setPlaceholder(this.t('publishModal_focusKeywordPlaceholder'))
+          .setValue(params.focusKeyword ?? '')
+          .onChange(value => { params.focusKeyword = value; });
+        this.refreshEditorial.push(() => {
+          text.setDisabled(this.seriesReadyType !== params.postType || !this.editorialCapabilities.focusKeyword);
+          keywordSetting.setDesc(this.t(this.seriesReadyType !== params.postType
+            ? 'publishModal_catalogLoading' : this.editorialCapabilities.focusKeyword
+              ? 'publishModal_focusKeywordDesc' : 'publishModal_focusKeywordUnsupported'));
+        });
+      });
+    this.refreshEditorial.forEach(refresh => refresh());
 
     if (!contentOnly) {
       this.renderSeriesSection(formEl, params);
@@ -489,75 +590,7 @@ export class WpPublishModal extends AbstractModal {
         })
       );
 
-      if (this.categories.items.length > 0) {
-        const categorySetting = new Setting(taxonomySection)
-          .setName(this.t('publishModal_category'));
-        categorySetting.settingEl.addClass('wp-publisher-category-setting');
-        const categoryItems = buildCategoryTree(this.categories.items);
-        const categoryControl = categorySetting.controlEl.createDiv({
-          cls: 'wp-publisher-category-control'
-        });
-        let categorySearch: SearchComponent | undefined;
-        if (categoryItems.length > CATEGORY_SEARCH_THRESHOLD) {
-          const searchContainer = categoryControl.createDiv({
-            cls: 'wp-publisher-category-search'
-          });
-          categorySearch = new SearchComponent(searchContainer)
-            .setPlaceholder(this.t('publishModal_searchCategories'));
-        }
-        const categoryTree = categoryControl.createDiv({
-          cls: 'wp-publisher-category-tree'
-        });
-        const categoryRows: { id: string, row: HTMLElement }[] = [];
-
-        categoryItems.forEach(({ category, depth, path }) => {
-          const categoryId = Number(category.id);
-          if (!Number.isFinite(categoryId)) {
-            return;
-          }
-          const row = categoryTree.createEl('label', {
-            cls: 'wp-publisher-category-row',
-            attr: { title: path.join(' > ') }
-          });
-          categoryRows.push({ id: String(category.id), row });
-          for (let level = 0; level < depth; level += 1) {
-            row.createSpan({
-              cls: 'wp-publisher-category-indent',
-              attr: { 'aria-hidden': 'true' }
-            });
-          }
-          const checkbox = row.createEl('input', { type: 'checkbox' });
-          checkbox.checked = params.categories.includes(categoryId);
-          checkbox.addEventListener('change', () => {
-            if (checkbox.checked) {
-              if (!params.categories.includes(categoryId)) {
-                params.categories = [ ...params.categories, categoryId ];
-              }
-            } else {
-              params.categories = params.categories.filter(id => id !== categoryId);
-            }
-          });
-          row.createSpan({ text: category.name });
-        });
-
-        const emptyState = categoryTree.createDiv({
-          cls: 'wp-publisher-category-empty',
-          text: this.t('publishModal_noCategoriesFound')
-        });
-        emptyState.hidden = true;
-        categorySearch?.onChange(query => {
-          const visibleIds = getVisibleCategoryIds(categoryItems, query);
-          let visibleRowCount = 0;
-          categoryRows.forEach(({ id, row }) => {
-            const isHidden = !visibleIds.has(id);
-            row.classList.toggle('is-hidden', isHidden);
-            if (!isHidden) {
-              visibleRowCount += 1;
-            }
-          });
-          emptyState.hidden = visibleRowCount > 0;
-        });
-      }
+      this.renderCategorySection(taxonomySection, params);
     }
 
     const idleButtonText = this.getSubmitButtonText();
@@ -568,6 +601,10 @@ export class WpPublishModal extends AbstractModal {
         .setButtonText(this.t('publishModal_previewButtonText'))
         .setClass('wp-publisher-preview-button')
         .onClick(() => {
+          if (!this.canSubmit(params)) {
+            new Notice(this.t('publishModal_waitForCatalog'));
+            return;
+          }
           openPublishPreviewModal(this.plugin, {
             params: {
               ...params,
@@ -580,7 +617,10 @@ export class WpPublishModal extends AbstractModal {
           });
         })
       )
-      .addButton(button => button
+      .addButton(button => {
+        this.refreshSubmit = () => button.setDisabled(this.isSubmitting || !this.canSubmit(params));
+        this.refreshSubmit();
+        button
         .setButtonText(idleButtonText)
         .setClass('wp-publisher-submit-button')
         .setCta()
@@ -588,6 +628,7 @@ export class WpPublishModal extends AbstractModal {
           if (this.isSubmitting) {
             return;
           }
+          if (!this.canSubmit(params)) return;
           if (this.seriesIssues.length > 0) {
             new Notice(this.t('publishModal_seriesFixFrontMatter'));
             return;
@@ -635,18 +676,142 @@ export class WpPublishModal extends AbstractModal {
             .setButtonText(this.t('publishModal_publishingButtonText'));
           button.buttonEl.classList.add('is-loading');
           try {
-            await this.onSubmit(params);
+            const submitted = { ...params, categories: [ ...params.categories ], tags: [ ...params.tags ] };
+            if (!this.editorialCapabilities.secondaryTitle) delete submitted.secondaryTitle;
+            if (!this.editorialCapabilities.focusKeyword) delete submitted.focusKeyword;
+            if (!this.editorialCapabilities.metaDescription) delete submitted.metaDescription;
+            await this.onSubmit(submitted);
           } finally {
             this.isSubmitting = false;
             if (button.buttonEl.isConnected) {
               button
-                .setDisabled(false)
+                .setDisabled(!this.canSubmit(params))
                 .setButtonText(idleButtonText);
               button.buttonEl.classList.remove('is-loading');
             }
           }
-        })
-      );
+        });
+      });
+  }
+
+  private initialCategoryValues(): Array<string | number> {
+    const raw: unknown[] = Array.isArray(this.categoryValue) ? this.categoryValue
+      : this.categoryValue === undefined || this.categoryValue === null ? [] : [ this.categoryValue ];
+    const values = raw.filter((value): value is string | number =>
+      typeof value === 'number' || (typeof value === 'string' && value.trim().length > 0))
+      .map(value => typeof value === 'string' ? value.trim() : value);
+    return values.length ? values : [ 1 ];
+  }
+
+  private canSubmit(params: WordPressPostParams): boolean {
+    return this.typeResource.status === 'ready'
+      && this.postTypes.items.includes(params.postType)
+      && (isContentOnlyUpdate(params) || (
+        this.seriesReadyType === params.postType
+        && (params.postType !== PostTypeConst.Post || (
+          this.categoriesInitialized && this.missingCategories.length === 0
+        ))
+      ));
+  }
+
+  private loadCategories(_params: WordPressPostParams, selectedOnly: boolean): void {
+    if (this.closed) return;
+    if (!selectedOnly) this.categoryExpanded = true;
+    void this.categoryResource.load(() => this.dataSource.loadCategories(
+      selectedOnly ? this.initialCategoryValues() : undefined
+    ));
+  }
+
+  private loadSeries(params: WordPressPostParams, expand = false, retry = false): void {
+    if (this.closed) return;
+    const typeChanged = this.loadedSeriesType !== params.postType;
+    if (!typeChanged && !expand && !retry) return;
+    if (typeChanged) {
+      this.seriesReadyType = '';
+      this.seriesExpanded = false;
+      this.seriesQuery = '';
+      this.loadedSeriesType = params.postType;
+    }
+    if (expand) this.seriesExpanded = true;
+    const selected = this.seriesExpanded ? undefined
+      : params.seriesPlacement?.kind === 'placement' ? params.seriesPlacement.placement.series : null;
+    void this.seriesResource.load(async () => {
+      const result = await this.dataSource.loadSeries(params.postType, selected);
+      if (result.catalog.error) throw new Error(result.catalog.error);
+      return result;
+    });
+  }
+
+  private renderResourceStatus<T>(parent: HTMLElement, resource: PublishPanelResource<T>, retry: () => void): void {
+    if (resource.status === 'ready') return;
+    const status = parent.createDiv({ cls: 'wp-publisher-catalog-status', attr: { role: 'status' } });
+    if (resource.status === 'error') {
+      status.createSpan({ text: this.t('publishModal_catalogError', { message: resource.error }) });
+      status.createEl('button', { text: this.t('publishModal_catalogRetry') }).addEventListener('click', retry);
+    } else {
+      status.setText(this.t('publishModal_catalogLoading'));
+    }
+  }
+
+  private renderCategorySection(parent: HTMLElement, params: WordPressPostParams): void {
+    const setting = new Setting(parent).setName(this.t('publishModal_category'));
+    setting.settingEl.addClass('wp-publisher-category-setting');
+    const control = setting.controlEl.createDiv({ cls: 'wp-publisher-category-control' });
+    const search = new SearchComponent(control.createDiv({ cls: 'wp-publisher-category-search' }))
+      .setPlaceholder(this.t('publishModal_searchCategories')).setValue(this.categoryQuery);
+    const browse = control.createEl('button', { cls: 'wp-publisher-catalog-browse', text: this.t('publishModal_loadAllCategories') });
+    const results = control.createDiv();
+    const expand = () => {
+      if (!this.categoryExpanded || this.categoryResource.status === 'error') this.loadCategories(params, false);
+    };
+    browse.addEventListener('click', expand);
+    search.onChange(query => {
+      this.categoryQuery = query;
+      if (query.trim()) expand();
+      this.refreshCategories();
+    });
+    this.refreshCategories = () => {
+      results.empty();
+      browse.classList.toggle('is-hidden', this.categoryExpanded && this.categoryResource.status !== 'error');
+      if (!this.categoriesInitialized) {
+        results.createDiv({ text: this.t('publishModal_selectedCategories', { values: this.initialCategoryValues().join(', ') }) });
+      }
+      this.renderResourceStatus(results, this.categoryResource, () => this.loadCategories(params, !this.categoryExpanded));
+      if (this.missingCategories.length) {
+        results.createDiv({ cls: 'wp-publisher-series-error', text: this.t('publishModal_missingCategories', {
+          values: this.missingCategories.join(', ')
+        }) });
+        results.createEl('button', { text: this.t('publishModal_confirmCategories') }).addEventListener('click', () => {
+          this.missingCategories = [];
+          this.refreshCategories();
+          this.refreshSubmit();
+        });
+      }
+      const tree = results.createDiv({ cls: 'wp-publisher-category-tree' });
+      const items = buildCategoryTree(this.categories.items);
+      const visible = getVisibleCategoryIds(items, this.categoryQuery, params.categories);
+      items.filter(item => visible.has(String(item.category.id))).forEach(({ category, depth, path }) => {
+        const id = Number(category.id);
+        if (!Number.isFinite(id)) return;
+        const row = tree.createEl('label', { cls: 'wp-publisher-category-row', attr: { title: path.join(' > ') } });
+        for (let level = 0; level < depth; level += 1) {
+          row.createSpan({ cls: 'wp-publisher-category-indent', attr: { 'aria-hidden': 'true' } });
+        }
+        const checkbox = row.createEl('input', { type: 'checkbox' });
+        checkbox.checked = params.categories.includes(id);
+        checkbox.disabled = !this.categoriesInitialized;
+        checkbox.addEventListener('change', () => {
+          params.categories = checkbox.checked ? [ ...new Set([ ...params.categories, id ]) ]
+            : params.categories.filter(value => value !== id);
+          this.refreshCategories();
+        });
+        row.createSpan({ text: category.name + (category.deprecated ? '（已弃用）' : '') });
+      });
+      if (visible.size === 0 && this.categoryResource.status === 'ready') {
+        tree.createDiv({ cls: 'wp-publisher-category-empty', text: this.t('publishModal_noCategoriesFound') });
+      }
+    };
+    this.refreshCategories();
   }
 
   private renderSeriesSection(
@@ -659,6 +824,40 @@ export class WpPublishModal extends AbstractModal {
       this.t('publishModal_sectionSeriesDesc'),
       'wp-publisher-series-card'
     );
+    const search = new SearchComponent(section.createDiv({ cls: 'wp-publisher-category-search' }))
+      .setPlaceholder(this.t('publishModal_searchSeries')).setValue(this.seriesQuery);
+    const browse = section.createEl('button', { cls: 'wp-publisher-catalog-browse', text: this.t('publishModal_loadAllSeries') });
+    const body = section.createDiv();
+    const expand = () => {
+      if (!this.seriesExpanded || this.seriesResource.status === 'error') this.loadSeries(params, true);
+    };
+    browse.addEventListener('click', expand);
+    search.onChange(query => {
+      this.seriesQuery = query;
+      if (query.trim()) expand();
+      this.refreshSeries();
+    });
+    this.refreshSeries = () => {
+      body.empty();
+      const ready = this.seriesReadyType === params.postType;
+      const available = ready && resolveSeriesPublishingAvailability(this.seriesCatalog, params.postType)
+        === SeriesPublishingAvailability.Available;
+      browse.classList.toggle('is-hidden', (ready && !available)
+        || (this.seriesExpanded && this.seriesResource.status !== 'error'));
+      search.setDisabled(ready && !available);
+      this.renderResourceStatus(body, this.seriesResource, () => this.loadSeries(params, false, true));
+      if (!ready) {
+        body.createDiv({ cls: 'wp-publisher-series-current', text: this.t('publishModal_seriesCurrent', {
+          value: describeSeriesIntentForUi(params.seriesPlacement, (key, vars) => this.t(key, vars))
+        }) });
+        return;
+      }
+      this.renderSeriesFields(body, params);
+    };
+    this.refreshSeries();
+  }
+
+  private renderSeriesFields(section: HTMLElement, params: WordPressPostParams): void {
     const current = params.seriesPlacement;
     const availability = resolveSeriesPublishingAvailability(
       this.seriesCatalog,
@@ -742,24 +941,17 @@ export class WpPublishModal extends AbstractModal {
         action: 'select'
       }));
 
-    let search: SearchComponent | undefined;
-    if (choices.length > CATEGORY_SEARCH_THRESHOLD) {
-      const searchContainer = selector.createDiv({
-        cls: 'wp-publisher-category-search'
-      });
-      search = new SearchComponent(searchContainer)
-        .setPlaceholder(this.t('publishModal_searchSeries'));
-    }
     const rows = selector.createDiv({ cls: 'wp-publisher-series-list' });
     const selectedId = current?.kind === 'placement'
       ? current.placement.series
       : current?.kind === 'clear'
         ? '__clear__'
         : '__keep__';
-    const rendered: Array<{ choice: typeof choices[number], row: HTMLElement }> = [];
     choices.forEach(choice => {
       const row = rows.createEl('label', { cls: 'wp-publisher-series-row' });
-      rendered.push({ choice, row });
+      const query = this.seriesQuery.trim().toLocaleLowerCase();
+      row.classList.toggle('is-hidden', Boolean(query) && choice.id !== selectedId
+        && choice.action === 'select' && !choice.label.toLocaleLowerCase().includes(query));
       const radio = row.createEl('input', {
         attr: { type: 'radio', name: 'wp-publisher-series' }
       }) as HTMLInputElement;
@@ -792,16 +984,7 @@ export class WpPublishModal extends AbstractModal {
             }
           };
         }
-        this.display(params);
-      });
-    });
-    search?.onChange(query => {
-      const normalized = query.trim().toLocaleLowerCase();
-      rendered.forEach(({ choice, row }) => {
-        row.classList.toggle(
-          'is-hidden',
-          Boolean(normalized) && !choice.label.toLocaleLowerCase().includes(normalized)
-        );
+        this.refreshSeries();
       });
     });
 

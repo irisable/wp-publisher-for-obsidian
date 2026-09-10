@@ -3,6 +3,7 @@ export interface CategoryReference {
   name: string;
   slug: string;
   parent?: string | number;
+  deprecated?: boolean;
 }
 
 export interface CategoryTreeItem {
@@ -114,13 +115,11 @@ export function buildCategoryTree(categories: readonly CategoryReference[]): Cat
 /** Return matching categories and their ancestors in tree order. */
 export function getVisibleCategoryIds(
   items: readonly CategoryTreeItem[],
-  query: string
+  query: string,
+  selected: readonly (string | number)[] = []
 ): Set<string> {
   const normalizedQuery = query.trim().toLocaleLowerCase();
-  if (!normalizedQuery) {
-    return new Set(items.map(item => String(item.category.id)));
-  }
-
+  const selectedIds = new Set(selected.map(String));
   const matchedIds = new Set<string>();
   items.forEach(item => {
     const searchableText = [
@@ -128,7 +127,9 @@ export function getVisibleCategoryIds(
       item.category.slug,
       ...item.path
     ].join(' ').toLocaleLowerCase();
-    if (searchableText.includes(normalizedQuery)) {
+    if (selectedIds.has(String(item.category.id)) || (normalizedQuery
+      ? searchableText.includes(normalizedQuery)
+      : !item.category.deprecated)) {
       matchedIds.add(String(item.category.id));
       item.ancestorIds.forEach(id => matchedIds.add(id));
     }

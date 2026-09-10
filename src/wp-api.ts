@@ -23,5 +23,6 @@ export interface Term {
   taxonomy: string;
   description: string;
   parent?: string | number;
+  deprecated?: boolean;
   count: number;
 }
