@@ -1,6 +1,6 @@
 # Publish Modal Loading QA
 
-Date: 2026-09-10. Local development build based on 1.1.0; not a new release.
+Date: 2026-09-10 through 2026-09-11. Verified for the 1.1.1 release candidate.
 
 ## Automated Verification
 
@@ -36,4 +36,4 @@ The requested independent tester agent could not start because of its usage limi
 
 One draft article was created on the NAS test site for acceptance; production was not touched. Mobile UI, XML-RPC UI, production-site latency, and a large production catalog were not retested. Search currently loads the full catalog on first use and filters locally for that dialog; it is not a server-side paged search.
 
-The user completed the final interaction check on 2026-09-11 and accepted the immediate-open behavior, loading states, browse controls, and search interaction. This change remains unreleased until a later version is explicitly prepared.
+The user completed the final interaction check on 2026-09-11 and accepted the immediate-open behavior, loading states, browse controls, and search interaction. The accepted change is included in the 1.1.1 release candidate.

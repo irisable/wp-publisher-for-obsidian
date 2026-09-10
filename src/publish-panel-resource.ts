@@ -7,14 +7,14 @@ export class PublishPanelResource<T> {
   private revision = 0;
   private closed = false;
 
-  async load(fetch: () => Promise<T>): Promise<void> {
+  async load(loader: () => Promise<T>): Promise<void> {
     if (this.closed) return;
     const revision = ++this.revision;
     this.status = 'loading';
     this.error = '';
     this.onChange();
     try {
-      const value = await fetch();
+      const value = await loader();
       if (this.closed || revision !== this.revision) return;
       this.value = value;
       this.status = 'ready';

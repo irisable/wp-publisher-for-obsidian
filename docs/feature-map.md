@@ -8,7 +8,7 @@ This document is the canonical map of current user-facing behavior, major code e
 * P3-1 through P3-7 passed staged real-site acceptance on 2026-07-21.
 * The post-P3 WP Title Layer subtitle and Series integration passed independent QA and manual acceptance against the NAS test site and the production WordPress site on 2026-08-29.
 * Release 1.1.0 passed 234 automated tests plus lint, TypeScript validation, a production build, and release checks; its GitHub release workflow also passed Companion PHP lint.
-* The post-release publish-window loading improvement passed automated verification plus Obsidian/NAS manual acceptance on 2026-09-11. It opens the form before remote requests finish and loads taxonomy choices on demand; see Publish Modal And Preview below.
+* The 1.1.1 publish-window loading improvement passed 252 automated tests plus Obsidian/NAS manual acceptance on 2026-09-11. It opens the form before remote requests finish and loads taxonomy choices on demand; see Publish Modal And Preview below.
 * XML-RPC remains supported for its established compatibility workflows; WP Title Layer Series over XML-RPC is intentionally deferred rather than silently approximated.
 * There is no formal P4 roadmap or unfinished development task card.
 * The supported-transport release matrix remains a separate compatibility gate, not an open P3 feature.
@@ -106,7 +106,7 @@ The interactive form opens after reading the local note, before authentication a
 
 For core REST profiles, initial category requests resolve only the saved IDs, slugs, or legacy names and their ancestors. The initial Series query resolves only the saved Series slug; a note without Series does not fetch that collection. Full catalogs are fetched only when the user chooses **Browse all** or starts searching, then filtered locally for the rest of that dialog. Category hierarchy, deprecated-but-selected categories, and explicit Series placement are preserved. Other transports retain their existing category-list API behind the asynchronous UI.
 
-Publishing waits for the current post settings and selected categories, but browsing additional choices does not block an already-ready form. Missing category references require explicit correction or dismissal rather than silently substituting another category. Closing the modal invalidates pending UI responses and settles the cancelled flow; changing the post type prevents earlier Series responses from replacing its capabilities. This change is not yet a new public release.
+Publishing waits for the current post settings and selected categories, but browsing additional choices does not block an already-ready form. Missing category references require explicit correction or dismissal rather than silently substituting another category. Closing the modal invalidates pending UI responses and settles the cancelled flow; changing the post type prevents earlier Series responses from replacing its capabilities. This behavior is included in the 1.1.1 release candidate.
 
 Local validation for the asynchronous publish form is recorded in [Publish Modal Loading QA](qa-publish-modal-loading.md).
 

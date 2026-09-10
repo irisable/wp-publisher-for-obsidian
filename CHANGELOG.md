@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.1] - 2026-09-11
+
+### Changed
+
+* Opened the publish form before remote authentication and taxonomy requests
+  finish, with independent loading, retry, and error states for each section.
+* Loaded only the note's selected categories and Series initially, then fetched
+  complete catalogs when the user searches or chooses to browse all options.
+* Paginated complete REST category catalogs while preserving hierarchy,
+  deprecated terms, and parent context.
+
+### Fixed
+
+* Preserved in-progress form edits while remote choices load and ignored stale
+  Series responses after changing post type or closing the dialog.
+* Required explicit correction or acknowledgment when a stored category cannot
+  be resolved instead of silently substituting another category.
+
 ## [1.1.0] - 2026-08-29
 
 ### Added
