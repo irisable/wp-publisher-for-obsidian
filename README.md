@@ -206,6 +206,21 @@ An explicit `title` remains the media-library attachment title. It is not
 prepended to the visible figcaption; a literal `caption` is rendered as that
 caption and nothing more.
 
+When `featuredImage` points to an image that is not shown in the article body,
+place an image-free `wp-media` block as the first non-empty body content. That
+block supplies metadata for the featured image and is removed from the
+published body. Its `caption` updates the WordPress attachment but does not
+create a figcaption because no body image exists:
+
+```markdown
+%% wp-media
+title: Cover image title
+altText: Accessible cover description
+caption: Media-library caption
+description: Longer attachment description
+%%
+```
+
 ## Explicit Synchronization
 
 Synchronization is always user initiated. The command palette provides:

@@ -151,6 +151,7 @@ Current behavior:
 * Featured images accept a WordPress attachment ID or Vault image reference and share the media cache with body images.
 * Markdown image alt text becomes post and attachment Alt Text without becoming a visible caption by default.
 * An adjacent `%% wp-media ... %%` block can set attachment title, Alt Text, caption, and description.
+* An image-free `wp-media` block at the first non-empty body position supplies metadata for a `featuredImage` that is not embedded in the article; it never creates a body figcaption.
 * `caption: =alt` explicitly reuses the final Alt Text as the attachment caption and editable figcaption.
 * Attachment title remains media-library metadata; even an explicitly authored title is not prepended to the visible figcaption. Only `caption` supplies figcaption content.
 * Sync restores safe cached local references, keeps unmatched remote URLs valid, and offers explicit validated downloads into a configured Vault folder.

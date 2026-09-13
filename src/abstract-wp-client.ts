@@ -404,6 +404,14 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     }
     if (reference.type === 'attachment-id') {
       postParams.featuredMediaId = reference.id;
+      if (postParams.featuredMediaMetadata) {
+        await this.applyMediaMetadata(
+          reference.id,
+          postParams.featuredMediaMetadata,
+          auth,
+          String(reference.id)
+        );
+      }
       return;
     }
     if (reference.type === 'remote-url') {
@@ -430,12 +438,15 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         path: reference.path
       }));
     }
-    const metadata = resolveMediaMetadata({
+    const metadata = {
+      ...resolveMediaMetadata({
       metadataMap: postParams.mediaMetadata,
       sourcePath: reference.path,
       vaultPath: imageFile.path,
       fileName: imageFile.name
-    });
+      }),
+      ...postParams.featuredMediaMetadata
+    };
     const result = await this.uploadVaultMedia(
       imageFile,
       content,
@@ -890,6 +901,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       const extractedMedia = extractMediaMetadataBlocks(postParams.content);
       postParams.content = extractedMedia.content;
       postParams.mediaMetadata = extractedMedia.metadataMap;
+      postParams.featuredMediaMetadata = extractedMedia.featuredMetadata;
     }
     if (!contentOnly) {
       if (!mergeUpdate) {

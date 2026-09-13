@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+* Added featured-image attachment metadata from an image-free `wp-media` block
+  placed at the first non-empty position in the note body.
+
 ## [1.1.1] - 2026-09-11
 
 ### Changed

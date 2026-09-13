@@ -41,6 +41,49 @@ test('extracts adjacent wp-media comments and removes them from publish content'
   assert.match(extracted.content, /Body paragraph\./);
 });
 
+test('uses a leading image-free wp-media block for featured image metadata', () => {
+  const source = [
+    '',
+    '%% wp-media',
+    'title: Cover title',
+    'altText: Cover alternative',
+    'caption: =alt',
+    'description: Longer attachment context',
+    '%%',
+    '',
+    'Body paragraph.',
+    '',
+    '%% wp-media',
+    'title: Unbound later block',
+    '%%'
+  ].join('\n');
+
+  assert.deepEqual(extractMediaMetadataBlocks(source), {
+    content: '\n\nBody paragraph.\n\n',
+    metadataMap: {},
+    featuredMetadata: {
+      title: 'Cover title',
+      altText: 'Cover alternative',
+      caption: 'Cover alternative',
+      description: 'Longer attachment context'
+    }
+  });
+});
+
+test('does not treat an image-adjacent opening wp-media block as featured metadata', () => {
+  const extracted = extractMediaMetadataBlocks([
+    '![Inline alternative](cover.jpg)',
+    '%% wp-media',
+    'caption: =alt',
+    '%%'
+  ].join('\n'));
+
+  assert.equal(extracted.featuredMetadata, undefined);
+  assert.deepEqual(extracted.metadataMap, {
+    'cover.jpg': { caption: 'Inline alternative' }
+  });
+});
+
 test('does not interpret wp-media examples inside fenced code', () => {
   const source = [
     '```markdown',

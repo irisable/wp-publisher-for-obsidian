@@ -84,6 +84,8 @@ export interface WordPressPostParams {
   secondaryTitleOwner?: SecondaryTitleOwner;
   /** Attachment metadata extracted from image-adjacent `wp-media` comments. */
   mediaMetadata?: import('./media-metadata').MediaMetadataMap;
+  /** Metadata from a leading image-free `wp-media` block for the featured image. */
+  featuredMediaMetadata?: import('./media-metadata').MediaMetadata;
 
   /** Fields to update when publishing an existing WordPress post. */
   updateStrategy?: PublishUpdateStrategy;

@@ -186,6 +186,20 @@ description: Media-library description
 显式 `title` 只作为媒体库中的附件标题，不会再被拼到可见 `figcaption` 前面；
 字面 `caption` 的可见内容就是它本身。
 
+当 `featuredImage` 指向的图片不在正文显示时，可将一个不带图片的
+`wp-media` 块放在正文第一个非空位置。该块只为特色图片提供元数据，发布时会从
+正文移除。因为正文中没有这张图片，`caption` 只更新 WordPress 附件说明文字，
+不会生成 `figcaption`：
+
+```markdown
+%% wp-media
+title: 封面图片标题
+altText: 便于无障碍阅读的封面说明
+caption: 媒体库说明文字
+description: 更完整的附件说明
+%%
+```
+
 ## 显式双向同步
 
 同步始终由用户主动触发。命令面板提供以下功能：

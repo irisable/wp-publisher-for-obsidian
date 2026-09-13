@@ -103,6 +103,7 @@ interface MediaMetadataBlock {
 export interface ExtractedMediaMetadata {
   content: string;
   metadataMap: MediaMetadataMap;
+  featuredMetadata?: MediaMetadata;
 }
 
 function sourceLines(content: string): SourceLine[] {
@@ -210,11 +211,28 @@ function resolveCaptionAltReference(
   return resolved;
 }
 
+function resolveFeaturedCaptionAltReference(
+  metadata: MediaMetadata
+): MediaMetadata {
+  if (metadata.caption !== '=alt') {
+    return metadata;
+  }
+  const resolved = { ...metadata };
+  const caption = optionalText(metadata.altText);
+  if (caption) {
+    resolved.caption = caption;
+  } else {
+    delete resolved.caption;
+  }
+  return resolved;
+}
+
 /** Extract image-adjacent metadata comments and remove them from publish content. */
 export function extractMediaMetadataBlocks(content: string): ExtractedMediaMetadata {
   const images = getMarkdownImages(content);
   const blocks = mediaMetadataBlocks(content);
   const metadataMap: MediaMetadataMap = {};
+  let featuredMetadata: MediaMetadata | undefined;
 
   blocks.forEach(block => {
     let image: MarkdownImageReference | undefined;
@@ -233,6 +251,11 @@ export function extractMediaMetadataBlocks(content: string): ExtractedMediaMetad
       : block.metadata;
     if (path && Object.keys(metadata).length > 0) {
       metadataMap[path] = { ...metadataMap[path], ...metadata };
+    } else if (!image && /^\s*$/.test(content.slice(0, block.start))) {
+      const resolved = resolveFeaturedCaptionAltReference(block.metadata);
+      if (Object.keys(resolved).length > 0) {
+        featuredMetadata = resolved;
+      }
     }
   });
 
@@ -241,7 +264,11 @@ export function extractMediaMetadataBlocks(content: string): ExtractedMediaMetad
     publishContent = publishContent.slice(0, block.start)
       + publishContent.slice(block.end);
   });
-  return { content: publishContent, metadataMap };
+  return {
+    content: publishContent,
+    metadataMap,
+    ...(featuredMetadata ? { featuredMetadata } : {})
+  };
 }
 
 function fileTitle(fileName: string): string | undefined {
