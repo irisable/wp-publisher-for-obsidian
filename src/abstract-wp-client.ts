@@ -27,7 +27,8 @@ import {
   readPublishingControlFrontMatter,
   readPublishFrontMatter,
   resolveWordPressTitle,
-  updatePublishFrontMatter
+  updatePublishFrontMatter,
+  writeBackSeriesGroup
 } from './front-matter';
 import { applyTextReplacements, TextReplacement } from './content-replacements';
 import { categorySlugsForIds, resolveCategoryIds } from './categories';
@@ -106,6 +107,7 @@ interface PublishExecutionContext {
   showEditConfirm: boolean;
   reuseSession: boolean;
   historyAction?: PublishHistoryAction;
+  writeBackMergedSeriesGroup?: WordPressPublishOptions['writeBackMergedSeriesGroup'];
 }
 
 interface PublishSyncContext {
@@ -208,6 +210,9 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     postParams: WordPressPostParams,
     _certificate: WordPressAuthParams
   ): Promise<void> {
+    if (!isContentOnlyUpdate(postParams) && postParams.seriesGroup !== undefined
+      && (!isMergeUpdate(postParams) || postParams.updateFields?.includes(PullField.SeriesGroup))
+    ) throw new Error(this.plugin.i18n.t('error_seriesGroupUnsupported'));
     const selected = !isMergeUpdate(postParams)
       || new Set(postParams.updateFields ?? []).has(PullField.Series);
     if (!isContentOnlyUpdate(postParams)
@@ -664,6 +669,8 @@ export abstract class AbstractWordPressClient implements WordPressClient {
               return remoteDocument.capabilities.metaDescription;
             case PullField.SecondaryTitle:
               return remoteDocument.capabilities.secondaryTitle;
+            case PullField.SeriesGroup:
+              return remoteDocument.capabilities.seriesGroup === true;
             case PullField.Series:
               return remoteDocument.capabilities.series;
             default:
@@ -675,6 +682,9 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         params.categoryTerms
       );
       const localMatter = { ...params.localMatter };
+      if (params.postParams.seriesGroupWrittenBack) {
+        localMatter.seriesGroup = params.postParams.publishedSeriesGroup;
+      }
       if (!contentOnly && params.postParams.seriesPlacement !== undefined) {
         applySeriesIntentToMatter(
           localMatter,
@@ -715,6 +725,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
           focusKeyword: remoteDocument.focusKeyword,
           metaDescription: remoteDocument.metaDescription,
           secondaryTitle: remoteDocument.secondaryTitle,
+          seriesGroup: remoteDocument.seriesGroup,
           seriesPlacement: remoteDocument.seriesPlacement,
           capabilities: remoteDocument.capabilities
         }
@@ -788,6 +799,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     try {
       const result = await this.tryToPublish({
         postParams,
+        originalMatter: { ...params.localSource.matter },
         auth: params.auth,
         categoryTerms: params.categoryTerms,
         syncMetadata: {
@@ -799,6 +811,26 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       });
       if (result.code !== WordPressClientReturnCode.OK) {
         throw new Error(result.error.message);
+      }
+      let baselineMatter = params.localSource.matter;
+      if (postParams.publishedSeriesGroup !== undefined) {
+        result.data.canonicalSeriesGroup = postParams.publishedSeriesGroup;
+      }
+      if (isMergeUpdate(postParams) && !params.execution.writeBackToNote
+        && params.execution.writeBackMergedSeriesGroup
+        && result.data.canonicalSeriesGroup !== undefined
+      ) {
+        try {
+          await params.execution.writeBackMergedSeriesGroup(result.data.canonicalSeriesGroup);
+          baselineMatter = { ...baselineMatter, seriesGroup: result.data.canonicalSeriesGroup };
+        } catch (error) {
+          const warning = this.plugin.i18n.t('warning_frontMatterWriteBackFailed', {
+            name: params.execution.sourceFile.name,
+            message: error instanceof Error ? error.message : String(error)
+          });
+          result.data.warnings = [ ...(result.data.warnings ?? []), warning ];
+          result.data.partialFailure = true;
+        }
       }
       this.plugin.settings.multiSiteTargets = rememberMultiSiteTarget(
         this.plugin.settings.multiSiteTargets,
@@ -819,7 +851,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         categoryTerms: params.categoryTerms,
         notePath,
         noteTitle,
-        localMatter: params.localSource.matter,
+        localMatter: baselineMatter,
         syncContext,
         execution: params.execution,
         timestamp
@@ -872,6 +904,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
 
   private async tryToPublish(params: {
     postParams: WordPressPostParams,
+    originalMatter: MatterData,
     auth: WordPressAuthParams,
     categoryTerms: readonly Term[],
     syncMetadata: {
@@ -960,6 +993,11 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         if (execution.writeBackToNote) {
           try {
             await this.plugin.app.fileManager.processFrontMatter(execution.sourceFile, fm => {
+              if (!contentOnly) {
+                postParams.seriesGroupWrittenBack = writeBackSeriesGroup(
+                  fm, params.originalMatter, postParams.publishedSeriesGroup
+                );
+              }
               const categorySlugs = contentOnly
                 ? []
                 : categorySlugsForIds(postParams.categories, categoryTerms);
@@ -1177,6 +1215,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         showEditConfirm: options.showEditConfirm
           ?? this.plugin.settings.showWordPressEditConfirm,
         reuseSession: options.reuseSession === true,
+        writeBackMergedSeriesGroup: options.writeBackMergedSeriesGroup,
         ...(options.historyAction ? { historyAction: options.historyAction } : {})
       };
 

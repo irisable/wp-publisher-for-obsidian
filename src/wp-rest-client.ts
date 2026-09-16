@@ -44,6 +44,7 @@ import {
 import { isUnknownRecord, requireUnknownRecord } from './unknown-value';
 import {
   describeSeriesIntentForUi,
+  isNonArticleSeries,
   nonEmptyRemoteSeriesMetadataFields,
   parseSeriesDefinition,
   portableSeriesFromRemote,
@@ -55,6 +56,8 @@ import {
   WPTL_SERIES_SCOPE_META,
   WPTL_SERIES_TAXONOMY,
   WPTL_SUBTITLE_META,
+  WPTL_SERIES_GROUP_META,
+  SeriesRole,
   type SeriesPublishingCatalog
 } from './series';
 import { PullField } from './sync-diff';
@@ -81,6 +84,7 @@ interface CorePostTypeCapabilities {
   taxonomies: string[];
   wptlSubtitle: boolean;
   wptlSeriesMeta: boolean;
+  wptlSeriesGroup: boolean;
 }
 
 export class WpRestClient extends AbstractWordPressClient {
@@ -181,6 +185,7 @@ export class WpRestClient extends AbstractWordPressClient {
     const capability: CorePostTypeCapabilities = {
       route,
       taxonomies,
+      wptlSeriesGroup: Object.prototype.hasOwnProperty.call(metaProperties, WPTL_SERIES_GROUP_META),
       wptlSubtitle: Object.prototype.hasOwnProperty.call(
         metaProperties,
         WPTL_SUBTITLE_META
@@ -291,15 +296,22 @@ export class WpRestClient extends AbstractWordPressClient {
     certificate: WordPressAuthParams
   ): Promise<void> {
     delete postParams.resolvedSeriesPlacement;
+    delete postParams.resolvedSeriesGroup;
+    delete postParams.publishedSeriesGroup;
+    delete postParams.seriesGroupWrittenBack;
     delete postParams.secondaryTitleOwner;
     if (isContentOnlyUpdate(postParams)) return;
     const reviewed = new Set(postParams.updateFields ?? []);
     const mergeUpdate = postParams.updateStrategy === 'merge' && Boolean(postParams.postId);
     const seriesSelected = !mergeUpdate || reviewed.has(PullField.Series);
     const subtitleSelected = !mergeUpdate || reviewed.has(PullField.SecondaryTitle);
+    let groupSelected = (!mergeUpdate || reviewed.has(PullField.SeriesGroup))
+      && postParams.seriesGroup !== undefined
+      && !(seriesSelected && isNonArticleSeries(postParams.seriesPlacement));
     const headers = this.context.getHeaders(certificate);
 
     if (this.context.remotePostApi !== 'core-rest') {
+      if (groupSelected) throw new Error(this.plugin.i18n.t('error_seriesGroupUnsupported'));
       if (seriesSelected && postParams.seriesPlacement !== undefined) {
         throw new Error(this.plugin.i18n.t('error_seriesRequiresRestProfile'));
       }
@@ -310,6 +322,22 @@ export class WpRestClient extends AbstractWordPressClient {
     }
 
     const capability = await this.inspectCorePostType(postParams.postType, headers);
+    // A group-only update must respect the remote role rather than infer article
+    // from omitted (or unreviewed) local placement metadata.
+    if (groupSelected && postParams.postId
+      && (!seriesSelected || postParams.seriesPlacement === undefined)) {
+      const remote = await this.fetchRemotePost({
+        postId: postParams.postId, postType: postParams.postType
+      }, certificate);
+      const role = remote.seriesPlacement?.seriesRole ?? remote.seriesRaw?.role;
+      if (role && role !== SeriesRole.Article) groupSelected = false;
+    }
+    if (groupSelected) {
+      if (!capability.wptlSeriesGroup) {
+        throw new Error(this.plugin.i18n.t('error_seriesGroupUnsupported'));
+      }
+      postParams.resolvedSeriesGroup = postParams.seriesGroup;
+    }
     if (subtitleSelected) {
       postParams.secondaryTitleOwner = capability.wptlSubtitle
         ? 'wptl'
@@ -501,7 +529,8 @@ export class WpRestClient extends AbstractWordPressClient {
     const verifySubtitle = postParams.secondaryTitleOwner === 'wptl'
       && Object.prototype.hasOwnProperty.call(postParams, 'secondaryTitle')
       && (!mergeUpdate || reviewed.has(PullField.SecondaryTitle));
-    if (!verifySeries && !verifySubtitle) return undefined;
+    const verifyGroup = postParams.resolvedSeriesGroup !== undefined;
+    if (!verifySeries && !verifySubtitle && !verifyGroup) return undefined;
     try {
       const remote = await this.fetchRemotePost({
         postId,
@@ -542,6 +571,15 @@ export class WpRestClient extends AbstractWordPressClient {
           expected: postParams.secondaryTitle?.trim() ?? '',
           actual: remote.secondaryTitle ?? ''
         }));
+      }
+      if (verifyGroup) {
+        const canonical = remote.seriesGroup;
+        if (!remote.capabilities.seriesGroup || typeof canonical !== 'string'
+          || Boolean(canonical.trim()) !== Boolean(postParams.resolvedSeriesGroup?.trim())
+        ) {
+          throw new Error(this.plugin.i18n.t('warning_seriesGroupReadbackFailed'));
+        }
+        postParams.publishedSeriesGroup = canonical;
       }
       return undefined;
     } catch (error) {

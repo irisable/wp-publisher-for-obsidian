@@ -31,6 +31,39 @@ function seasonedSeries(overrides = {}) {
   });
 }
 
+test('only version 1 public boolean capability enables advanced roles, independently of private markers', () => {
+  for (const capability of [undefined, null, {}, { version: 2, book_structure: true },
+    { version: '1', book_structure: true }, { version: 1, book_structure: 'true' },
+    { version: 1, book_structure: false }]) {
+    const definition = seasonedSeries({ wptl_capabilities: capability });
+    assert.equal(definition.bookStructureEnabled, false);
+    const intent = parseSeriesFrontMatter({ series: definition.slug, seriesRole: 'intro', seriesScope: 'series' }).intent;
+    assert.throws(() => resolveSeriesPlacement(intent, definition), /explicit WP Title Layer/);
+    assert.equal(portableSeriesFromRemote({ termIds: ['123'], seasonKey: '', role: 'intro', scope: 'series', label: 'Preface' }, definition).seriesRole, 'intro');
+  }
+  const enabled = seasonedSeries({ wptl_capabilities: { version: 1, book_structure: true, content_groups: 'article-only' } });
+  assert.equal(enabled.bookStructureEnabled, true);
+  for (const role of ['intro', 'epilogue', 'appendix']) {
+    const intent = parseSeriesFrontMatter({ series: enabled.slug, seriesRole: role, seriesScope: 'series', seriesLabel: 'Custom label' }).intent;
+    const result = resolveSeriesPlacement(intent, enabled);
+    assert.equal(result.meta.wptl_series_role, role);
+    assert.equal(result.meta.wptl_sequence_label, 'Custom label');
+    assert.equal(result.meta.wptl_season_key, '');
+    assert.deepEqual(portableSeriesFromRemote({ termIds: ['123'], seasonKey: '', role, scope: 'series', label: 'Custom label' }, enabled), intent.placement);
+  }
+});
+
+test('seasoned non-article writes require explicit scope while legacy readback stays readable', () => {
+  const definition = seasonedSeries({ wptl_capabilities: { version: 1, book_structure: true } });
+  const intent = parseSeriesFrontMatter({ series: definition.slug, seriesRole: 'intro', seriesSeason: 2 }).intent;
+  assert.throws(() => resolveSeriesPlacement(intent, definition), error => error.code === 'series_scope_required');
+  assert.equal(portableSeriesFromRemote({ termIds: ['123'], seasonKey: 'arrival', role: 'intro', scope: '', label: '' }, definition).seriesScope, undefined);
+  const flat = { ...definition, structure: 'flat', seasons: [] };
+  const resolved = resolveSeriesPlacement(parseSeriesFrontMatter({ series: flat.slug, seriesRole: 'intro' }).intent, flat);
+  assert.equal(resolved.meta.wptl_series_scope, 'series');
+  assert.equal(resolved.portable.seriesScope, 'series');
+});
+
 test('distinguishes missing, clear, and owned Series front matter', () => {
   assert.deepEqual(parseSeriesFrontMatter({ title: 'No owner' }), { issues: [] });
   assert.deepEqual(parseSeriesFrontMatter({ series: null }), {

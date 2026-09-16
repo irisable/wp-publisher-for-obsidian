@@ -62,6 +62,7 @@ const CAPABILITY_KEYS: Array<keyof RemotePostFieldCapabilities> = [
   'focusKeyword',
   'metaDescription',
   'secondaryTitle',
+  'seriesGroup',
   'series'
 ];
 
@@ -304,6 +305,7 @@ class WpRemoteInspectorModal extends AbstractModal {
         focusKeyword: this.snapshot.focusKeyword,
         metaDescription: this.snapshot.metaDescription,
         secondaryTitle: this.snapshot.secondaryTitle,
+        seriesGroup: this.snapshot.seriesGroup,
         seriesPlacement: this.snapshot.seriesPlacement,
         capabilities: this.snapshot.capabilities
       }
@@ -626,6 +628,12 @@ class WpRemoteInspectorModal extends AbstractModal {
     );
 
     this.renderCapabilities(snapshot.capabilities);
+    this.createMetadata(
+      metadataGrid,
+      this.t('publishModal_seriesGroup'),
+      snapshot.seriesGroup,
+      snapshot.capabilities.seriesGroup === true
+    );
 
     if (this.conversion) {
       this.renderConversion(this.conversion);
@@ -893,6 +901,7 @@ class WpRemoteInspectorModal extends AbstractModal {
       focusKeyword: this.t('remoteInspector_focusKeyword'),
       metaDescription: this.t('remoteInspector_metaDescription'),
       secondaryTitle: this.t('remoteInspector_secondaryTitle'),
+      seriesGroup: this.t('publishModal_seriesGroup'),
       series: this.t('remoteInspector_series')
     };
     return labels[key];

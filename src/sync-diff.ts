@@ -21,6 +21,7 @@ export const PullField = {
   FocusKeyword: 'focusKeyword',
   MetaDescription: 'metaDescription',
   SecondaryTitle: 'secondaryTitle',
+  SeriesGroup: 'seriesGroup',
   Series: 'series'
 } as const;
 
@@ -31,6 +32,7 @@ export const PULL_FIELD_ORDER: PullField[] = [
   PullField.Title,
   PullField.SecondaryTitle,
   PullField.Series,
+  PullField.SeriesGroup,
   PullField.Body,
   PullField.Slug,
   PullField.Excerpt,
@@ -67,6 +69,7 @@ export interface PullRemoteSource {
   focusKeyword?: string;
   metaDescription?: string;
   secondaryTitle?: string;
+  seriesGroup?: string;
   seriesPlacement?: PortableSeriesPlacement | null;
   capabilities: {
     slug: boolean;
@@ -79,6 +82,7 @@ export interface PullRemoteSource {
     focusKeyword: boolean;
     metaDescription: boolean;
     secondaryTitle: boolean;
+    seriesGroup?: boolean;
     series: boolean;
   };
 }
@@ -323,6 +327,12 @@ export function buildPullFieldDiffs(options: {
         : serializeSeriesIntent({ kind: 'clear' }),
       remote.capabilities.series
     ),
+    createField(
+      PullField.SeriesGroup,
+      ownString(matter, 'seriesGroup'),
+      remote.seriesGroup ?? '',
+      remote.capabilities.seriesGroup === true
+    ),
     createField(PullField.Body, parts.body, remote.body),
     createField(
       PullField.Slug,
@@ -488,6 +498,9 @@ export function applySelectedPullFields(
           next,
           deserializeSeriesIntent(String(diff.remoteValue))
         );
+        break;
+      case PullField.SeriesGroup:
+        next.seriesGroup = String(diff.remoteValue);
         break;
     }
   });

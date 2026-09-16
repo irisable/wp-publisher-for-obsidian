@@ -131,6 +131,7 @@ Note-controlled fields:
 * `metaDescription`, with `meta_description` as a read-compatible alias
 * `secondaryTitle`, with `secondary_title` as a read-compatible alias
 * The atomic Series group `series`, `seriesSeason`, `seriesRole`, `seriesScope`, and `seriesLabel`
+* `seriesGroup`, a separate content-group label within the selected Series/Season
 * `status` and `commentStatus`, with `comment_status` as a read-compatible alias
 
 Plugin-owned scalar relationship and activity fields:
@@ -187,9 +188,11 @@ The integration follows [the Series contract](wp-title-layer-series-integration-
 * Missing `series` preserves an existing remote placement, while an explicitly empty `series` removes the taxonomy relation and all dependent public metadata.
 * Series resolution, combination validation, and taxonomy/meta preparation happen before article creation or update. Series definitions and managed ordering are never created or modified by Publisher.
 * Publish, preview, Inspector, Pull, Diff, three-way merge, write-back, and baseline treat the complete Series placement as one atomic field.
+* Content groups use `seriesGroup` / REST `meta.wptl_series_group` (WPTL rc.3 contract). Missing preserves the remote value; `""` clears it; non-string YAML values are rejected. Target schema support is checked before writing. Canonical labels returned after alias resolution are written back only if the original note property is unchanged. Groups have their own pull/merge field; internal group IDs, taxonomy, rank, and group-wide renaming are never used.
 * A successful post response is followed by authenticated readback of the public Series placement and canonical subtitle. A mismatch preserves the post ID, records a partial outcome with the expected and actual state, and does not establish a strong baseline.
-* The first implementation supports normal `article` placement over WordPress core REST. XML-RPC Series, custom Series taxonomy keys, and advanced book roles remain blocked until they have explicit semantic capabilities and separate acceptance.
-* Existing advanced-role placements remain readable for Inspect and Pull even though Publisher cannot author them yet. Coordinated multi-site publishing of a seasoned Series is stopped before any write and must be reviewed one site at a time because Season labels remain site-owned.
+* Unreleased rc.4 integration supports advanced role writes only when the term's public `wptl_capabilities` reports `version: 1` and `book_structure: true`. Missing/unknown capability remains read-only for advanced roles. Role/scope/season controls preserve same-Series selections; whole-Series scope clears the Season and article clears scope. See integration spec section 22 and its shared request fixtures.
+* Content groups are article-only: non-article UI hides the group without deleting old note data, and publishing omits the group metadata. Group-only updates consult the remote role when placement is not selected for writing.
+* Existing advanced-role placements remain readable for Inspect and Pull on older servers. XML-RPC Series and custom Series taxonomy keys remain unsupported. Coordinated multi-site publishing of a seasoned Series is stopped before any write and must be reviewed one site at a time because Season labels remain site-owned.
 
 Companion 0.5.0 is a deliberately narrow compatibility release. It corrects subtitle-provider detection and improves capability reporting, but it does not implement or imitate a new authentication mechanism. The broader Transport/Auth proposal in [the transport refactor design](wp-publisher-companion-transport-refactor.md) remains future architecture work; no SSH transport, custom token, XML-RPC fallback, or automatic Wordfence change is included.
 

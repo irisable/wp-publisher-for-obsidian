@@ -26,6 +26,7 @@ const FIELD = {
   FocusKeyword: 'focusKeyword',
   MetaDescription: 'metaDescription',
   SecondaryTitle: 'secondaryTitle',
+  SeriesGroup: 'seriesGroup',
   Series: 'series'
 } as const;
 
@@ -33,6 +34,7 @@ const FIELD_ORDER: PullField[] = [
   FIELD.Title,
   FIELD.SecondaryTitle,
   FIELD.Series,
+  FIELD.SeriesGroup,
   FIELD.Body,
   FIELD.Slug,
   FIELD.Excerpt,
@@ -799,6 +801,10 @@ export function applyResolvedMergeToMatter(
             ? deserializeSeriesIntent(String(snapshot.value))
             : undefined
         );
+        break;
+      case FIELD.SeriesGroup:
+        if (snapshot.present) next.seriesGroup = String(snapshot.value);
+        else delete next.seriesGroup;
         break;
     }
   });

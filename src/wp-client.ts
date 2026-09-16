@@ -76,6 +76,11 @@ export interface WordPressPostParams {
   focusKeyword?: string;
   metaDescription?: string;
   secondaryTitle?: string;
+  seriesGroup?: string;
+  /** Schema-approved value, then canonical readback, for this publish only. */
+  resolvedSeriesGroup?: string;
+  publishedSeriesGroup?: string;
+  seriesGroupWrittenBack?: boolean;
   /** Missing means a full update must preserve the remote Series placement. */
   seriesPlacement?: SeriesPlacementIntent;
   /** Target-specific WPTL values prepared immediately before the post request. */
@@ -120,6 +125,8 @@ export interface WordPressPublishResult {
   partialFailure?: boolean;
   /** Whether a strong post-publish readback established the new baseline. */
   syncBaselineUpdated?: boolean;
+  /** Verified canonical label for an explicitly published content group, including clears. */
+  canonicalSeriesGroup?: string;
 }
 
 export interface WordPressMediaUploadResult {
@@ -147,6 +154,8 @@ export interface WordPressPublishOptions {
   target?: WordPressPublishTarget;
   /** Keep the legacy single-site front-matter write-back unless explicitly disabled. */
   writeBackToNote?: boolean;
+  /** Merge-only guarded finalization, completed before baseline and history are recorded. */
+  writeBackMergedSeriesGroup?: (canonical: string) => Promise<void>;
   /** Override whether uploaded media URLs replace links in the source note. */
   replaceMediaLinks?: boolean;
   /** Suppress per-target notices when a coordinator presents combined results. */

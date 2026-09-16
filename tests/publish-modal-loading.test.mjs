@@ -165,3 +165,101 @@ test('initial connection failures are retryable without resetting an edited fiel
   assert.equal(f.submit().disabled, false);
   f.modal.close();
 });
+
+const bookSeries = (extra = {}) => ({
+  termId: 90, name: 'Writing', slug: 'writing', mode: 'ordered', structure: 'seasoned',
+  bookStructureEnabled: true, seasons: [{ key: 's1', label: 'One', publicId: 1, sort: 10 }], ...extra
+});
+const settingControl = (f, name) => f.nodes().find(el => el.name === name)?.children[0]?.children[0];
+async function readySeries(matter, definition = bookSeries()) {
+  const f = fixture(matter);
+  f.modal.open();
+  f.types.resolve(['post']);
+  f.categories[0].resolve([term(1, 'uncategorized')]);
+  f.series[0].resolve(catalog('post', [definition]));
+  await flush();
+  return f;
+}
+
+test('role then scope then season controls normalize transitions without destroying a saved group or label', async () => {
+  const f = await readySeries({ series: 'writing', seriesSeason: 1, seriesLabel: 'Custom label', seriesGroup: 'Saved group' });
+  input(settingControl(f, 'publishModal_seriesRole'), 'intro');
+  assert.equal(settingControl(f, 'publishModal_seriesScope').value, 'season');
+  assert.equal(settingControl(f, 'publishModal_seriesSeason').value, '1');
+  assert.equal(settingControl(f, 'publishModal_seriesGroup'), undefined);
+  const names = f.nodes().filter(el => el.name).map(el => el.name);
+  assert.ok(names.indexOf('publishModal_seriesRole') < names.indexOf('publishModal_seriesScope'));
+  assert.ok(names.indexOf('publishModal_seriesScope') < names.indexOf('publishModal_seriesSeason'));
+  input(settingControl(f, 'publishModal_seriesScope'), 'series');
+  assert.equal(settingControl(f, 'publishModal_seriesSeason'), undefined);
+  input(settingControl(f, 'publishModal_seriesRole'), 'article');
+  assert.equal(settingControl(f, 'publishModal_seriesScope'), undefined);
+  assert.equal(settingControl(f, 'publishModal_seriesSeason').value, '');
+  assert.equal(settingControl(f, 'publishModal_seriesGroup').value, 'Saved group');
+  input(settingControl(f, 'publishModal_seriesSeason'), '1');
+  await f.submit().fire();
+  assert.deepEqual(f.submitted[0].seriesPlacement.placement, {
+    series: 'writing', seriesRole: 'article', seriesSeason: 1, seriesLabel: 'Custom label'
+  });
+  assert.equal(f.submitted[0].seriesGroup, 'Saved group');
+  f.modal.close();
+});
+
+test('reselecting the same Series preserves advanced role, scope, season and independent public label', async () => {
+  const f = await readySeries({ series: 'writing', seriesRole: 'appendix', seriesScope: 'season', seriesSeason: 1,
+    seriesLabel: 'Reading notes', seriesGroup: 'Historical group' });
+  const radio = f.nodes().find(el => el.attributes.type === 'radio' && el.checked);
+  await radio.fire('change');
+  assert.equal(settingControl(f, 'publishModal_seriesRole').value, 'appendix');
+  assert.equal(settingControl(f, 'publishModal_seriesScope').value, 'season');
+  assert.equal(settingControl(f, 'publishModal_seriesSeason').value, '1');
+  assert.equal(settingControl(f, 'publishModal_seriesLabel').value, 'Reading notes');
+  assert.equal(settingControl(f, 'publishModal_seriesGroup'), undefined);
+  await f.submit().fire();
+  assert.equal(f.submitted[0].seriesGroup, 'Historical group');
+  assert.equal(f.submitted[0].seriesPlacement.placement.seriesRole, 'appendix');
+  f.modal.close();
+});
+
+test('unknown book capability allows correcting a read-back role to article but does not offer advanced writes', async () => {
+  const f = await readySeries({ series: 'writing', seriesRole: 'intro', seriesScope: 'series' }, bookSeries({ bookStructureEnabled: false }));
+  const role = settingControl(f, 'publishModal_seriesRole');
+  assert.deepEqual(role.children.map(option => option.attributes.value), ['article', 'intro']);
+  assert.equal(settingControl(f, 'publishModal_seriesScope').disabled, true);
+  assert.ok(f.nodes().some(el => el.text === 'publishModal_seriesAdvancedUnsupported'));
+  input(role, 'article');
+  assert.deepEqual(settingControl(f, 'publishModal_seriesRole').children.map(option => option.attributes.value), ['article']);
+  assert.equal(settingControl(f, 'publishModal_seriesScope'), undefined);
+  f.modal.close();
+});
+
+test('existing seasoned non-article missing scope stays undecided; a new flat role uses whole Series', async () => {
+  const existing = await readySeries({ series: 'writing', seriesRole: 'intro', seriesSeason: 1 });
+  assert.equal(settingControl(existing, 'publishModal_seriesScope').value, '');
+  input(settingControl(existing, 'publishModal_seriesRole'), 'epilogue');
+  assert.equal(settingControl(existing, 'publishModal_seriesScope').value, '');
+  existing.modal.close();
+  const flat = await readySeries({ series: 'writing' }, bookSeries({ structure: 'flat', seasons: [] }));
+  input(settingControl(flat, 'publishModal_seriesRole'), 'epilogue');
+  const scope = settingControl(flat, 'publishModal_seriesScope');
+  assert.equal(scope.value, 'series');
+  assert.deepEqual(scope.children.map(option => option.attributes.value), ['series']);
+  assert.equal(settingControl(flat, 'publishModal_seriesSeason'), undefined);
+  assert.equal(settingControl(flat, 'publishModal_seriesGroup'), undefined);
+  await flat.submit().fire();
+  assert.equal(Object.hasOwn(flat.submitted[0], 'seriesGroup'), false);
+  assert.equal(flat.submitted[0].seriesPlacement.placement.seriesScope, 'series');
+  flat.modal.close();
+});
+
+test('returning a historical non-article with invalid group to article requires explicit correction', async () => {
+  const f = await readySeries({ series: 'writing', seriesRole: 'intro', seriesScope: 'series', seriesGroup: null });
+  input(settingControl(f, 'publishModal_seriesRole'), 'article');
+  input(settingControl(f, 'publishModal_seriesSeason'), '1');
+  await f.submit().fire();
+  assert.equal(f.submitted.length, 0);
+  input(settingControl(f, 'publishModal_seriesGroup'), '');
+  await f.submit().fire();
+  assert.equal(f.submitted[0].seriesGroup, '');
+  f.modal.close();
+});

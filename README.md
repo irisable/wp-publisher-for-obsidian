@@ -1,5 +1,9 @@
 # WP Publisher
 
+Current prerelease: **1.2.0-rc.1**, paired with
+[WP Title Layer 1.0.0-rc.4](https://github.com/irisable/wp-title-layer/releases/tag/v1.0.0-rc.4).
+Stable users may stay on 1.1.2 while the new role/group workflow completes manual acceptance.
+
 **English** | [简体中文](#简体中文)
 
 ## English
@@ -150,12 +154,25 @@ subtitles prefer `subtitle`.
 `series` refers to one Series already defined by WP Title Layer. Flat Series
 need only the slug; seasoned Series also use the Season's stable public
 `seriesSeason` ID. Omitting `series` while updating preserves the remote
-placement, while `series: ""` explicitly removes it. The first implementation
-supports normal `article` placement through WordPress core REST; XML-RPC and
-advanced book roles are blocked before any article write rather than silently
-dropped. A seasoned Series is published to multiple sites one site at a time so
+placement, while `series: ""` explicitly removes it. Core REST supports normal
+`article` placement. WP Title Layer rc.4 can additionally enable `seriesRole`
+(`intro`, `epilogue`, `appendix`) through its public book-structure capability.
+Non-article roles use `seriesScope: series` or `season`; whole-Series scope
+cannot include a Season. Older/unknown capabilities block advanced writes,
+not readback. XML-RPC Series remains unsupported. A seasoned Series is published to multiple sites one site at a time so
 each site's Season label can be reviewed. Series definitions and ordering remain
 owned by WordPress.
+
+`seriesGroup: "W1 Seeing human weakness"` assigns a content group within the
+selected Series and Season (WP Title Layer rc.3 or later with the REST field
+enabled). Omit this property to preserve the remote group, or use
+`seriesGroup: ""` to clear it. Only strings are accepted; a blank YAML value
+is not a clear instruction. Publishing reads back the canonical group name
+and updates the note only if you have not edited that property in the meantime.
+Unsupported sites stop group publishing with an explicit message. Pull and
+merge also support the group as a separate field.
+Groups apply only to main articles. Non-article roles hide the group control
+and preserve historical values without sending or clearing them.
 
 `wpTags` contains WordPress tag names and may include spaces. The transport
 resolves them to the selected site's term IDs and slugs, so site-specific
@@ -427,10 +444,20 @@ commentStatus: open
 
 `series` 指向 WP Title Layer 中已经存在的一个系列。平铺系列只需 slug；分季系列
 还需填写该分季稳定的公开 `seriesSeason` ID。更新文章时省略 `series` 会保留远端
-归属，`series: ""` 才表示明确移出系列。首版只通过 WordPress 核心 REST 支持普通
-`article` 归属；XML-RPC 和高级书籍角色会在任何文章写入前阻止，而不是静默丢弃。
+归属，`series: ""` 才表示明确移出系列。WordPress 核心 REST 支持普通 `article`
+归属；WPTL rc.4 的公共书籍式结构能力还可开放 `seriesRole`：`intro`、`epilogue`、
+`appendix`。非正文以 `seriesScope: series` 或 `season` 区分全系列和分季范围；
+全系列范围不能同时带季。旧版或未知能力阻止高级角色写入，但仍可读回。
+XML-RPC Series 仍不支持。
 分季 Series 的多站点发布须逐站执行，以便分别核对各站的 Season 名称。系列定义
 和篇序仍完全由 WordPress 管理。
+
+`seriesGroup: "W1 看见人的软弱"` 指定所选系列和季内的内容分组，需要支持该
+REST 字段的 WP Title Layer rc.3 或更新版本。省略属性保留远端分组；
+`seriesGroup: ""` 明确取消分组。只接受字符串，不能用 YAML 空值代替清空。
+发布后读取规范组名，仅在笔记中的原属性未被你修改时回写。目标站不支持时会
+明确提示并停止此次发布。拉取和冲突合并也可单独选择内容分组字段。
+分组仅作用于主要文章；非正文不显示分组输入框，保留历史值但不发送或清空。
 
 `wpTags` 专门保存 WordPress 标签名称，可以包含空格；发布时再解析为所选站点的
 term ID 和 slug，不把站点专属标识存入笔记。Obsidian 自身的 `tags` 属性和正文内

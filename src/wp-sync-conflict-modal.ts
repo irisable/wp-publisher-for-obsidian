@@ -89,6 +89,7 @@ import {
 } from './publish-history';
 import { openWithBrowser, showError } from './utils';
 import { describeSerializedSeriesIntentForUi } from './series';
+import { writeBackMergedSeriesGroup } from './merge-series-group-writeback';
 
 type MergePhase =
   | 'resolving'
@@ -465,6 +466,7 @@ class WpSyncConflictModal extends AbstractModal {
         focusKeyword: snapshot.focusKeyword,
         metaDescription: snapshot.metaDescription,
         secondaryTitle: snapshot.secondaryTitle,
+        seriesGroup: snapshot.seriesGroup,
         seriesPlacement: snapshot.seriesPlacement,
         capabilities: snapshot.capabilities
       }
@@ -1220,6 +1222,41 @@ class WpSyncConflictModal extends AbstractModal {
         postType: this.selected.target.postType
       },
       writeBackToNote: false,
+      writeBackMergedSeriesGroup: async canonical => {
+        if (!this.frozen || !this.restoreSnapshot) {
+          throw new Error(this.t('mergeModal_previewUnavailable'));
+        }
+        const updated = await writeBackMergedSeriesGroup({
+          store: this.plugin.app.vault,
+          file: this.sourceFile,
+          frozen: this.frozen,
+          matter: built.matter,
+          canonical,
+          restoreSnapshot: this.restoreSnapshot,
+          stringifyMatter: stringifyYaml,
+          saveRestore: async snapshot => {
+            const previous = this.plugin.settings.pullRestoreSnapshots;
+            this.plugin.settings.pullRestoreSnapshots = addPullRestoreSnapshot(previous, snapshot);
+            try {
+              await this.plugin.saveSettings();
+            } catch (error) {
+              this.plugin.settings.pullRestoreSnapshots = previous;
+              throw error;
+            }
+          }
+        });
+        this.frozen = updated.frozen;
+        this.restoreSnapshot = updated.restoreSnapshot;
+        built.raw = updated.frozen.content;
+        built.matter = updated.matter;
+        built.document = createLocalSyncDocument({
+          noteRaw: built.raw,
+          body: built.body,
+          matter: built.matter,
+          fallbackTitle: this.sourceFile.basename,
+          fields: built.fields
+        });
+      },
       replaceMediaLinks: false,
       showNotices: false,
       showEditConfirm: false,
@@ -1532,6 +1569,8 @@ class WpSyncConflictModal extends AbstractModal {
         return this.t('pullModal_fieldMetaDescription');
       case PullField.Series:
         return this.t('pullModal_fieldSeries');
+      case PullField.SeriesGroup:
+        return this.t('publishModal_seriesGroup');
       default:
         return this.t('pullModal_fieldSecondaryTitle');
     }

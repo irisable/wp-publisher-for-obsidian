@@ -14,6 +14,7 @@ const FIELD = {
   FocusKeyword: 'focusKeyword',
   MetaDescription: 'metaDescription',
   SecondaryTitle: 'secondaryTitle',
+  SeriesGroup: 'seriesGroup',
   Series: 'series'
 } as const;
 
@@ -82,6 +83,7 @@ function buildRestMergePayload(options: {
     ...(fields.has(FIELD.FocusKeyword) ? [ 'rank_math_focus_keyword' ] : []),
     ...(fields.has(FIELD.MetaDescription) ? [ 'rank_math_description' ] : []),
     ...(fields.has(FIELD.SecondaryTitle) ? [ 'wptl_subtitle' ] : []),
+    ...(fields.has(FIELD.SeriesGroup) ? [ 'wptl_series_group' ] : []),
     ...(fields.has(FIELD.Series) ? [
       'wptl_season_key',
       'wptl_series_role',

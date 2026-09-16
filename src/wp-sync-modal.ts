@@ -223,6 +223,7 @@ class WpSyncModal extends AbstractModal {
         focusKeyword: snapshot.focusKeyword,
         metaDescription: snapshot.metaDescription,
         secondaryTitle: snapshot.secondaryTitle,
+        seriesGroup: snapshot.seriesGroup,
         seriesPlacement: snapshot.seriesPlacement,
         capabilities: snapshot.capabilities
       }
@@ -742,6 +743,7 @@ class WpSyncModal extends AbstractModal {
       case PullField.FocusKeyword: return this.t('pullModal_fieldFocusKeyword');
       case PullField.MetaDescription: return this.t('pullModal_fieldMetaDescription');
       case PullField.Series: return this.t('pullModal_fieldSeries');
+      case PullField.SeriesGroup: return this.t('publishModal_seriesGroup');
       default: return this.t('pullModal_fieldSecondaryTitle');
     }
   }

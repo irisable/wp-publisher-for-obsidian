@@ -32,6 +32,7 @@ export interface StoredPublishFrontMatter {
 }
 
 export interface EditorialFrontMatterMetadata {
+  seriesGroup?: string;
   slug?: string;
   excerpt?: string;
   featuredImage?: string;
@@ -196,6 +197,9 @@ export function readEditorialFrontMatter(
   if (focusKeyword) metadata.focusKeyword = focusKeyword;
   if (metaDescription) metadata.metaDescription = metaDescription;
   if (secondaryTitle.present) metadata.secondaryTitle = secondaryTitle.value ?? '';
+  if (Object.prototype.hasOwnProperty.call(matter, 'seriesGroup')
+    && typeof matter.seriesGroup === 'string'
+  ) metadata.seriesGroup = matter.seriesGroup.trim();
   return metadata;
 }
 
@@ -245,4 +249,19 @@ export function updatePublishFrontMatter(
   delete matter.profileName;
   delete matter.postId;
   delete matter.postType;
+}
+
+/** Accept a canonical server label only while the original note value is unchanged. */
+export function writeBackSeriesGroup(
+  matter: MatterData,
+  original: MatterData,
+  canonical: string | undefined
+): boolean {
+  if (canonical === undefined
+    || Object.prototype.hasOwnProperty.call(matter, 'seriesGroup')
+      !== Object.prototype.hasOwnProperty.call(original, 'seriesGroup')
+    || matter.seriesGroup !== original.seriesGroup
+  ) return false;
+  matter.seriesGroup = canonical;
+  return true;
 }

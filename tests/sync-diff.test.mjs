@@ -29,6 +29,7 @@ function remote(overrides = {}) {
     focusKeyword: 'remote keyword',
     metaDescription: 'Remote SEO description',
     secondaryTitle: 'Remote subtitle',
+    seriesGroup: 'Remote group',
     capabilities: {
       slug: true,
       excerpt: true,
@@ -39,7 +40,8 @@ function remote(overrides = {}) {
       featuredMedia: true,
       focusKeyword: true,
       metaDescription: true,
-      secondaryTitle: true
+      secondaryTitle: true,
+      seriesGroup: true
     },
     ...overrides
   };

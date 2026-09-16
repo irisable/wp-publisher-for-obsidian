@@ -3,6 +3,7 @@ import type { TranslateKey } from './i18n';
 
 export const WPTL_SERIES_TAXONOMY = 'wptl_series';
 export const WPTL_SUBTITLE_META = 'wptl_subtitle';
+export const WPTL_SERIES_GROUP_META = 'wptl_series_group';
 export const WPTL_SEASON_KEY_META = 'wptl_season_key';
 export const WPTL_SERIES_ROLE_META = 'wptl_series_role';
 export const WPTL_SERIES_SCOPE_META = 'wptl_series_scope';
@@ -44,7 +45,7 @@ export type SeriesPlacementIntent =
   | { kind: 'placement', placement: PortableSeriesPlacement };
 
 export interface SeriesParseIssue {
-  field: 'series' | 'seriesSeason' | 'seriesRole' | 'seriesScope' | 'seriesLabel';
+  field: 'series' | 'seriesSeason' | 'seriesRole' | 'seriesScope' | 'seriesLabel' | 'seriesGroup';
   code: string;
   message: string;
 }
@@ -74,7 +75,7 @@ export interface SeriesDefinition {
   mode: 'ordered' | 'unordered';
   structure: SeriesStructure;
   seasons: SeriesSeasonDefinition[];
-  /** Only a future explicit semantic capability may enable advanced roles. */
+  /** Only a recognized public capability may enable advanced-role writes. */
   bookStructureEnabled: boolean;
 }
 
@@ -195,6 +196,23 @@ function scalarLabel(value: unknown): string | undefined {
 export function parseSeriesFrontMatter(
   matter: MatterData
 ): SeriesFrontMatterResult {
+  const result = parseSeriesPlacementFrontMatter(matter);
+  if (!isNonArticleSeries(result.intent)
+    && hasOwn(matter, 'seriesGroup') && typeof matter.seriesGroup !== 'string') {
+    result.issues.push(issue(
+      'seriesGroup',
+      'series_invalid_group',
+      'seriesGroup must be a string. Use seriesGroup: "" to clear the group; a blank YAML value (null) is not an explicit clear.'
+    ));
+  }
+  return result;
+}
+
+export function isNonArticleSeries(intent?: SeriesPlacementIntent): boolean {
+  return intent?.kind === 'placement' && intent.placement.seriesRole !== SeriesRole.Article;
+}
+
+function parseSeriesPlacementFrontMatter(matter: MatterData): SeriesFrontMatterResult {
   const ownsSeries = hasOwn(matter, 'series');
   if (!ownsSeries) {
     const dependent = SERIES_DEPENDENT_KEYS.find(key => (
@@ -418,7 +436,9 @@ export function parseSeriesDefinition(value: unknown): SeriesDefinition {
     mode,
     structure,
     seasons: meta.wptl_seasons.map(parseSeason),
-    bookStructureEnabled: false
+    bookStructureEnabled: isRecord(value.wptl_capabilities)
+      && value.wptl_capabilities.version === 1
+      && value.wptl_capabilities.book_structure === true
   };
 }
 
@@ -462,7 +482,7 @@ export function resolveSeriesPlacement(
     );
   }
 
-  const placement = intent.placement;
+  const placement = { ...intent.placement };
   if (placement.seriesRole !== SeriesRole.Article
     && !definition.bookStructureEnabled
     && !options.allowUnverifiedAdvancedRole
@@ -477,6 +497,16 @@ export function resolveSeriesPlacement(
       'series_article_scope',
       'A regular Series article must not declare seriesScope.'
     );
+  }
+  if (placement.seriesRole !== SeriesRole.Article && !placement.seriesScope
+    && !options.allowUnverifiedAdvancedRole) {
+    if (definition.structure === SeriesStructure.Seasoned) {
+      throw new SeriesIntegrationError(
+        'series_scope_required',
+        'Choose seriesScope: series or season explicitly for a non-article role in a seasoned Series.'
+      );
+    }
+    placement.seriesScope = SeriesScope.Series;
   }
   if (placement.seriesScope === SeriesScope.Series
     && placement.seriesSeason !== undefined
@@ -769,6 +799,7 @@ export function describeSerializedSeriesIntentForUi(
 }
 
 const SERIES_ISSUE_TRANSLATIONS: Partial<Record<string, TranslateKey>> = {
+  series_invalid_group: 'seriesIssue_invalidGroup',
   series_missing_owner: 'seriesIssue_missingOwner',
   series_invalid_type: 'seriesIssue_invalidType',
   series_clear_has_dependents: 'seriesIssue_clearHasDependents',

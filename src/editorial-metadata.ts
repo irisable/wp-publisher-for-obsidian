@@ -1,6 +1,7 @@
 import {
   WPTL_SERIES_TAXONOMY,
   WPTL_SUBTITLE_META,
+  WPTL_SERIES_GROUP_META,
   type ResolvedSeriesPlacement
 } from './series';
 
@@ -25,6 +26,7 @@ export interface EditorialMetadataValues {
   secondaryTitle?: string;
   secondaryTitleOwner?: SecondaryTitleOwner;
   resolvedSeriesPlacement?: ResolvedSeriesPlacement;
+  resolvedSeriesGroup?: string;
   updateStrategy?: string;
   updateFields?: readonly string[];
 }
@@ -70,6 +72,9 @@ export function buildRestEditorialMetadata(
     metadata.featured_media = values.featuredMediaId;
   }
   const meta: Record<string, string> = {};
+  if (values.resolvedSeriesGroup !== undefined) {
+    meta[WPTL_SERIES_GROUP_META] = values.resolvedSeriesGroup;
+  }
   const secondaryTitleProvided = Object.prototype.hasOwnProperty.call(
     values,
     'secondaryTitle'

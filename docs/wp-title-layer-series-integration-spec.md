@@ -9,6 +9,9 @@
 > 审核基线：2026-08-29 两个项目的当前工作区代码
 >
 > 本文记录 1.1.0 的数据契约、实现边界和验收依据。
+>
+> 2026-09-16 增补：rc.4 公共能力、角色 UI 和 article-only 内容分组已在
+> Publisher 工作区实现；跨项目 REST 联调见第 22 节，尚未发布。
 
 ## 1. 结论摘要
 
@@ -20,7 +23,7 @@ WP Publisher 应把一篇文章在 WP Title Layer 中的归属视为一个完整
 ```yaml
 series: incarnational-communication
 seriesSeason: 2
-seriesRole: article
+seriesRole: intro
 seriesScope: season
 seriesLabel: "15"
 ```
@@ -131,7 +134,7 @@ frontmatter 的 `series` 必须是标量，不能设计为数组。
 - `seriesLabel` 可以用于任一合法 placement，但它不是排序号。
 - 序文、尾文和附录的正式轨道语义以目标 Series 已启用 WP Title Layer 书籍式结构为前提。
 
-当前 WPTL 把 `wptl_book_structure_version` 设为私有 metadata，标准 REST term
+1.1.0 集成时 WPTL 把 `wptl_book_structure_version` 设为私有 metadata，标准 REST term
 response 不会报告 `bookStructureEnabled`。因此第一发布切片应只承诺普通正文
 placement。若要在 UI 或自动发布中支持 `intro`、`epilogue`、`appendix`，必须二选一：
 
@@ -139,7 +142,7 @@ placement。若要在 UI 或自动发布中支持 `intro`、`epilogue`、`append
    `bookStructureEnabled: true|false`；或
 2. 把高级 role/scope 明确留在后续阶段，不因 frontmatter 中出现这些值就猜测已启用。
 
-本规格倾向方案 1，但该只读能力尚不存在，实施时必须把它列为前置依赖。
+rc.4 采用方案 1：term 顶层 `wptl_capabilities`，详见第 22 节。
 
 ## 7. 示例
 
@@ -713,3 +716,87 @@ WP Title Layer 当前契约的主要代码位置：
 
 实现前应重新核对目标 WP Title Layer 版本；如果这些契约发生变化，应优先更新本
 规格和兼容测试，而不是在 WP Publisher 中加入静默猜测。
+
+## 22. rc.4 公共能力与角色协作增补（2026-09-16）
+
+本节覆盖原先“高级角色等待能力”的实现边界。尚未提交、部署或发布；原有
+`seriesGroup` 和受保护回填改动均保留。服务端实现和最终真实 REST 联调由
+WP Title Layer 项目负责。
+
+### 公共能力
+
+原生 `wp/v2/wptl_series` term 响应顶层提供只读语义字段：
+
+```json
+{
+  "wptl_capabilities": {
+    "version": 1,
+    "book_structure": true,
+    "content_groups": "article-only"
+  }
+}
+```
+
+Publisher 仅在 `version === 1 && book_structure === true` 时允许高级角色写入；
+缺失、未知版本、字符串伪布尔值都不授权。历史高级角色仍可读回、Inspect 和 Pull。
+不读取或写入内部 book version marker；`content_groups` 不作为修改 taxonomy 的授权。
+
+### 角色、范围与分组
+
+- UI 顺序为角色、范围、季，最后独立公开标签。正文不显示范围；全系列不显示季。
+- 新切换为非正文：已有季默认 `season`，否则默认 `series`；选全系列立即清除季。
+- 分季历史非正文缺省范围保持待选择状态，写入前必须明确选择；读回不猜测、不迁移。
+- 平铺非正文缺省范围按 `series` 写入，不提供无意义的季选项。
+- 切回 `article` 清除 scope，不恢复之前已清除的季；分季正文仍需选择季。
+- 重新选择同一系列保留 role、scope、season、label；选另一个系列使用正文初始状态。
+- 公开标签 `seriesLabel` 只影响单篇显示，不决定前台栏目；全系列非正文栏目由服务端按 role 聚合。
+- 内容分组只在正文显示。非正文的历史 `seriesGroup` 保留在笔记和远端，不发送清空值。
+- 只更新分组且不提交 placement 时，以当前远端角色判断；不能使用未审阅的本地角色覆盖此判断。
+- 省略属性继续表示不拥有该字段，不自动删除旧属性。
+
+### 跨项目请求夹具与验证
+
+共享夹具：`tests/fixtures/wptl-rc4-publisher-requests.json`。
+其 `requests[].payload` 经真实 `WpRestClient.prepareTransportMetadata()` 与
+`publish()` 路径输出比对，不是另写一套模拟构造器。
+
+WPTL 联调步骤：
+
+1. 按 `term.meta` 创建专用测试系列、季，并启用真实 book structure；检查公开能力。
+2. 将每个 payload 的 `wptl_series[0]` 从占位 9001 替换为实际 term ID；
+   若使用不同内部季 key，同步替换 `wptl_season_key`。
+3. 将六个 payload 通过原生 REST dispatch 发布为测试草稿。覆盖全系列序文、
+   分季序文、尾文、附录、正文分组，以及非正文省略历史分组。
+4. 最后一例先设置 `initialMeta`，再更新相同文章；断言旧分组原值仍在，但不参与
+   非正文的有效分组呈现。不要以空字符串代替 payload 中省略的字段。
+5. 检查 role/scope/season/label 回读及公共分组语义；不要求暴露内部 rank。
+
+Publisher 侧可运行：
+
+```sh
+node --experimental-strip-types --test tests/series.test.mjs tests/series-group.test.mjs tests/publish-modal-loading.test.mjs
+npm run check
+```
+
+当前本地检查：281 项测试、lint、TypeScript、production build、diff whitespace
+检查通过。独立 QA 补查后修正了历史非正文切换角色的缺省范围保留，以及切回正文
+时非法历史分组值的重新校验，两项均有真实 modal 逻辑的 DOM-adapter 回归测试。
+
+WPTL 协作任务反馈：六类共享请求在最低 WP 6.5 / PHP 7.4 的真实 REST dispatch
+测试通过 40 项，含 draft 写入、meta 回读及 publish 路径；公开能力 true/false 与
+只读保护另已通过。此结果由 WPTL 任务执行，不是 Publisher 的 Obsidian UI 验收。
+
+本轮未重新加载 Obsidian 插件，也未操作任何 WordPress 站点。尚未做 rc.4 实际
+Obsidian 窗口中的角色选择、NAS 端到端发布和生产站人工验收。
+
+### 本地开发构建
+
+安装包：`dist/wp-publisher-1.1.2-dev-wptl-rc4-20260916.zip`。
+仅包含 `main.js`、`manifest.json`、`styles.css`，无 `data.json` 或账户数据。
+manifest 仍为 1.1.2；这是明确标识的开发构建，不是公开 Release。
+
+SHA-256：`e846c4e7043aa06c92c415519935ee26a7eff8f220e0f2af55302361fe16f4be`。
+
+安装时保留目标 Vault 的 `data.json`；不要用整个仓库替换生产库插件目录。
+当前 Irisable 和 test-vault 使用本机仓库构建的软链接，人工重新加载后才使用
+这轮代码；本任务没有替用户执行重新加载。

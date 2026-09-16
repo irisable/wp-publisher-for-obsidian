@@ -23,6 +23,7 @@ const FIELD = {
   FocusKeyword: 'focusKeyword',
   MetaDescription: 'metaDescription',
   SecondaryTitle: 'secondaryTitle',
+  SeriesGroup: 'seriesGroup',
   Series: 'series'
 } as const;
 
@@ -30,6 +31,7 @@ export const SYNC_FIELD_ORDER: PullField[] = [
   FIELD.Title,
   FIELD.SecondaryTitle,
   FIELD.Series,
+  FIELD.SeriesGroup,
   FIELD.Body,
   FIELD.Slug,
   FIELD.Excerpt,
@@ -297,6 +299,9 @@ export function createLocalSyncDocument(options: {
           [ 'subtitle', 'secondaryTitle', 'secondary_title' ]
         );
         break;
+      case FIELD.SeriesGroup:
+        document.fields[field] = textSnapshot(options.matter, [ 'seriesGroup' ]);
+        break;
       case FIELD.Series:
         {
           const series = parseSeriesFrontMatter(options.matter);
@@ -368,6 +373,9 @@ export function createRemoteSyncDocument(options: {
       : undefined,
     [FIELD.SecondaryTitle]: remote.capabilities.secondaryTitle
       ? remote.secondaryTitle ?? ''
+      : undefined,
+    [FIELD.SeriesGroup]: remote.capabilities.seriesGroup
+      ? remote.seriesGroup ?? ''
       : undefined,
     [FIELD.Series]: remote.capabilities.series
       ? serializeSeriesIntent(remote.seriesPlacement

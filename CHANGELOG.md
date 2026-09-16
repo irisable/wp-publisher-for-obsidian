@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0-rc.1] - 2026-09-16
+
+Prerelease paired with WP Title Layer 1.0.0-rc.4. Advanced-role publishing
+requires its versioned capability response. Real Obsidian/NAS acceptance remains
+pending; this does not replace the stable 1.1.2 release.
+
+### Added
+
+* Added WP Title Layer content groups through `seriesGroup`, with schema-gated
+  REST publishing, explicit clearing, canonical label readback, guarded note
+  write-back, and pull/merge support.
+* Added capability-gated WP Title Layer rc.4 role/scope controls, preserving
+  same-Series selections and keeping public labels independent of roles.
+* Limited content-group publishing to main articles while preserving inactive
+  historical group values on introductions, epilogues, and appendices.
+
 ## [1.1.2] - 2026-09-13
 
 ### Added

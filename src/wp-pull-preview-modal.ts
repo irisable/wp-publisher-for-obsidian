@@ -427,6 +427,7 @@ class WpPullPreviewModal extends AbstractModal {
           focusKeyword: result.data.focusKeyword,
           metaDescription: result.data.metaDescription,
           secondaryTitle: result.data.secondaryTitle,
+          seriesGroup: result.data.seriesGroup,
           seriesPlacement: result.data.seriesPlacement,
           capabilities: result.data.capabilities
         }
@@ -475,6 +476,7 @@ class WpPullPreviewModal extends AbstractModal {
         focusKeyword: this.snapshot.focusKeyword,
         metaDescription: this.snapshot.metaDescription,
         secondaryTitle: this.snapshot.secondaryTitle,
+        seriesGroup: this.snapshot.seriesGroup,
         seriesPlacement: this.snapshot.seriesPlacement,
         capabilities: this.snapshot.capabilities
       }
@@ -590,6 +592,7 @@ class WpPullPreviewModal extends AbstractModal {
           focusKeyword: this.snapshot.focusKeyword,
           metaDescription: this.snapshot.metaDescription,
           secondaryTitle: this.snapshot.secondaryTitle,
+          seriesGroup: this.snapshot.seriesGroup,
           seriesPlacement: this.snapshot.seriesPlacement,
           capabilities: this.snapshot.capabilities
         }
@@ -1207,6 +1210,7 @@ class WpPullPreviewModal extends AbstractModal {
           focusKeyword: this.snapshot.focusKeyword,
           metaDescription: this.snapshot.metaDescription,
           secondaryTitle: this.snapshot.secondaryTitle,
+          seriesGroup: this.snapshot.seriesGroup,
           seriesPlacement: this.snapshot.seriesPlacement,
           capabilities: this.snapshot.capabilities
         }
@@ -1543,6 +1547,8 @@ class WpPullPreviewModal extends AbstractModal {
         return this.t('pullModal_fieldMetaDescription');
       case PullField.Series:
         return this.t('pullModal_fieldSeries');
+      case PullField.SeriesGroup:
+        return this.t('publishModal_seriesGroup');
       default:
         return this.t('pullModal_fieldSecondaryTitle');
     }

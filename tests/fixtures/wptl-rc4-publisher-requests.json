@@ -1,0 +1,65 @@
+{
+  "contractVersion": 1,
+  "term": {
+    "id": 9001,
+    "slug": "publisher-rc4-fixture",
+    "name": "Publisher rc.4 fixture",
+    "wptl_capabilities": { "version": 1, "book_structure": true, "content_groups": "article-only" },
+    "meta": {
+      "wptl_series_mode": "ordered",
+      "wptl_series_structure": "seasoned",
+      "wptl_seasons": [{ "key": "publisher-rc4-season-one", "label": "Season One", "sort": 10, "public_id": 1 }]
+    }
+  },
+  "requests": [
+    {
+      "name": "whole-series-intro",
+      "matter": { "series": "publisher-rc4-fixture", "seriesRole": "intro", "seriesScope": "series", "seriesLabel": "About this book" },
+      "payload": {
+        "title": "whole-series-intro", "content": "<p>Publisher rc.4 fixture</p>", "status": "draft", "comment_status": "open", "categories": [], "tags": [], "wptl_series": [9001],
+        "meta": { "wptl_season_key": "", "wptl_series_role": "intro", "wptl_series_scope": "series", "wptl_sequence_label": "About this book" }
+      }
+    },
+    {
+      "name": "season-intro",
+      "matter": { "series": "publisher-rc4-fixture", "seriesRole": "intro", "seriesScope": "season", "seriesSeason": 1, "seriesLabel": "Season opening" },
+      "payload": {
+        "title": "season-intro", "content": "<p>Publisher rc.4 fixture</p>", "status": "draft", "comment_status": "open", "categories": [], "tags": [], "wptl_series": [9001],
+        "meta": { "wptl_season_key": "publisher-rc4-season-one", "wptl_series_role": "intro", "wptl_series_scope": "season", "wptl_sequence_label": "Season opening" }
+      }
+    },
+    {
+      "name": "whole-series-epilogue",
+      "matter": { "series": "publisher-rc4-fixture", "seriesRole": "epilogue", "seriesScope": "series", "seriesLabel": "Afterword" },
+      "payload": {
+        "title": "whole-series-epilogue", "content": "<p>Publisher rc.4 fixture</p>", "status": "draft", "comment_status": "open", "categories": [], "tags": [], "wptl_series": [9001],
+        "meta": { "wptl_season_key": "", "wptl_series_role": "epilogue", "wptl_series_scope": "series", "wptl_sequence_label": "Afterword" }
+      }
+    },
+    {
+      "name": "season-appendix",
+      "matter": { "series": "publisher-rc4-fixture", "seriesRole": "appendix", "seriesScope": "season", "seriesSeason": 1, "seriesLabel": "Appendix A" },
+      "payload": {
+        "title": "season-appendix", "content": "<p>Publisher rc.4 fixture</p>", "status": "draft", "comment_status": "open", "categories": [], "tags": [], "wptl_series": [9001],
+        "meta": { "wptl_season_key": "publisher-rc4-season-one", "wptl_series_role": "appendix", "wptl_series_scope": "season", "wptl_sequence_label": "Appendix A" }
+      }
+    },
+    {
+      "name": "article-content-group",
+      "matter": { "series": "publisher-rc4-fixture", "seriesSeason": 1, "seriesLabel": "1A", "seriesGroup": "Group One" },
+      "payload": {
+        "title": "article-content-group", "content": "<p>Publisher rc.4 fixture</p>", "status": "draft", "comment_status": "open", "categories": [], "tags": [], "wptl_series": [9001],
+        "meta": { "wptl_season_key": "publisher-rc4-season-one", "wptl_series_role": "article", "wptl_series_scope": "", "wptl_sequence_label": "1A", "wptl_series_group": "Group One" }
+      }
+    },
+    {
+      "name": "non-article-preserves-old-group",
+      "initialMeta": { "wptl_series_group": "Historical group" },
+      "matter": { "series": "publisher-rc4-fixture", "seriesRole": "intro", "seriesScope": "series", "seriesLabel": "Preface", "seriesGroup": "Historical group" },
+      "payload": {
+        "title": "non-article-preserves-old-group", "content": "<p>Publisher rc.4 fixture</p>", "status": "draft", "comment_status": "open", "categories": [], "tags": [], "wptl_series": [9001],
+        "meta": { "wptl_season_key": "", "wptl_series_role": "intro", "wptl_series_scope": "series", "wptl_sequence_label": "Preface" }
+      }
+    }
+  ]
+}

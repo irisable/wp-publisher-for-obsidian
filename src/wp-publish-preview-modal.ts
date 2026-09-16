@@ -185,6 +185,7 @@ class WpPublishPreviewModal extends AbstractModal {
         [ this.t('previewModal_postType'), params.postType ],
         [ this.t('publishModal_slug'), params.slug ],
         [ this.t('publishModal_secondaryTitle'), params.secondaryTitle ],
+        [ this.t('publishModal_seriesGroup'), params.seriesGroup ],
         [
           this.t('publishModal_sectionSeries'),
           describeSeriesIntentForUi(

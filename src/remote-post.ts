@@ -5,6 +5,7 @@ import {
   WPTL_SERIES_SCOPE_META,
   WPTL_SERIES_TAXONOMY,
   WPTL_SUBTITLE_META,
+  WPTL_SERIES_GROUP_META,
   type PortableSeriesPlacement,
   type RemoteSeriesPlacementRaw
 } from './series';
@@ -53,6 +54,7 @@ export interface RemotePostFieldCapabilities {
   focusKeyword: boolean;
   metaDescription: boolean;
   secondaryTitle: boolean;
+  seriesGroup?: boolean;
   series: boolean;
 }
 
@@ -76,6 +78,7 @@ export interface RemotePostDocument {
   focusKeyword?: string;
   metaDescription?: string;
   secondaryTitle?: string;
+  seriesGroup?: string;
   secondaryTitleOwner?: 'wptl' | 'legacy';
   seriesPlacement?: PortableSeriesPlacement | null;
   /** Site-specific identifiers are transient and never copied into a baseline. */
@@ -457,6 +460,8 @@ export function parseCoreRestRemotePost(response: unknown): RemotePostDocument {
     ...(metaDescription ? { metaDescription } : {}),
     ...(secondaryTitle !== undefined ? { secondaryTitle } : {}),
     ...(secondaryTitleOwner ? { secondaryTitleOwner } : {}),
+    ...(typeof meta[WPTL_SERIES_GROUP_META] === 'string'
+      ? { seriesGroup: meta[WPTL_SERIES_GROUP_META] as string } : {}),
     ...(seriesRaw ? { seriesRaw } : {}),
     capabilities: {
       slug: hasOwn(response, 'slug'),
@@ -471,6 +476,7 @@ export function parseCoreRestRemotePost(response: unknown): RemotePostDocument {
       focusKeyword: hasOwn(meta, 'rank_math_focus_keyword'),
       metaDescription: hasOwn(meta, 'rank_math_description'),
       secondaryTitle: secondaryTitleOwner !== undefined,
+      seriesGroup: typeof meta[WPTL_SERIES_GROUP_META] === 'string',
       series: seriesAvailable
     }
   };
