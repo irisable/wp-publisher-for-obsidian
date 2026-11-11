@@ -63,13 +63,19 @@ interface SyncFailure {
   message: string;
 }
 
+const activeSyncModals = new WeakMap<WordpressPlugin, WpSyncModal>();
+
 export function openWordPressSyncModal(plugin: WordpressPlugin): void {
+  // Repeated commands must not stack identical dialogs over one another.
+  if (activeSyncModals.has(plugin)) return;
   const file = plugin.app.workspace.getActiveFile();
   if (!(file instanceof TFile)) {
     showError(plugin.i18n.t('error_noActiveFile'));
     return;
   }
-  new WpSyncModal(plugin, file).open();
+  const modal = new WpSyncModal(plugin, file);
+  activeSyncModals.set(plugin, modal);
+  modal.open();
 }
 
 class WpSyncModal extends AbstractModal {
@@ -108,6 +114,7 @@ class WpSyncModal extends AbstractModal {
   onClose(): void {
     this.closed = true;
     this.requestVersion += 1;
+    if (activeSyncModals.get(this.plugin) === this) activeSyncModals.delete(this.plugin);
     this.contentEl.empty();
   }
 
@@ -337,6 +344,7 @@ class WpSyncModal extends AbstractModal {
   }
 
   private render(): void {
+    if (this.closed) return;
     this.contentEl.empty();
     this.createHeader(this.t('syncModal_title'));
     this.renderHero();

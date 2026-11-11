@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-11-11
+
+Stable release paired with WP Title Layer 1.0.0. Includes the Series groups
+and advanced-role support introduced in 1.2.0-rc.1, plus the following fixes.
+
+### Fixed
+
+* Rendered MP3 embeds as native WordPress audio blocks instead of images,
+  retaining uploaded attachment IDs and content-based media reuse.
+* Applied MP3 `wp-media` captions to native audio figcaptions and reused shared
+  attachment title/caption/description updates without image-only alt text.
+  Remote MP3 metadata updates require an existing profile attachment mapping.
+* Prevented repeated sync commands from stacking identical dialogs, which made
+  closing the top dialog appear ineffective. Late results cannot redraw a
+  dismissed sync dialog.
+
 ## [1.2.0-rc.1] - 2026-09-16
 
 Prerelease paired with WP Title Layer 1.0.0-rc.4. Advanced-role publishing

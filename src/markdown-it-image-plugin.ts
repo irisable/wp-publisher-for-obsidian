@@ -1,6 +1,7 @@
 import MarkdownIt from 'markdown-it';
 import Token from 'markdown-it/lib/token.mjs';
 import { trim } from 'lodash-es';
+import { audioEmbedHtml, isMp3Source } from './audio-embed';
 
 
 const tokenType = 'ob_img';
@@ -53,6 +54,15 @@ function applyStandardImageDimensions(md: MarkdownIt): void {
 
 function plugin(md: MarkdownIt): void {
   applyStandardImageDimensions(md);
+  const imageRenderer = md.renderer.rules.image;
+  md.renderer.rules.image = (tokens, index, options, env, renderer) => {
+    const source = tokens[index].attrGet('src') ?? '';
+    return isMp3Source(source)
+      ? audioEmbedHtml(source, md.utils.escapeHtml)
+      : imageRenderer
+        ? imageRenderer(tokens, index, options, env, renderer)
+        : renderer.renderToken(tokens, index, options);
+  };
   md.inline.ruler.after('image', tokenType, (state, silent) => {
     const regex = /^!\[\[([^|\]\n]+)(\|([^\]\n]+))?\]\]/;
     const match = state.src.slice(state.pos).match(regex);
@@ -104,6 +114,9 @@ function plugin(md: MarkdownIt): void {
   md.renderer.rules.ob_img = (tokens: Token[], idx: number) => {
     const token = tokens[idx];
     const src = token.attrs?.[0]?.[1];
+    if (isMp3Source(src ?? '')) {
+      return audioEmbedHtml(src ?? '', md.utils.escapeHtml);
+    }
     const width = token.attrs?.[1]?.[1];
     const height = token.attrs?.[2]?.[1];
     if (width) {

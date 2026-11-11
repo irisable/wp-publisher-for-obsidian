@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import MarkdownIt from 'markdown-it';
-import { MarkdownItImagePluginInstance } from '../src/markdown-it-image-plugin.ts';
 import { markdownItWordPressBreakPlugin } from '../src/markdown-it-wordpress-break-plugin.ts';
 import { markdownItWordPressListPlugin } from '../src/markdown-it-wordpress-list-plugin.ts';
 import { importTypescriptModule } from './import-typescript-module.mjs';
+const { MarkdownItImagePluginInstance } = await importTypescriptModule(
+  new URL('../src/markdown-it-image-plugin.ts', import.meta.url)
+);
 import {
   buildRestMediaMetadata,
   buildUploadedImageReference,
@@ -26,6 +28,47 @@ function createParser(options = {}) {
     .use(markdownItWordPressBreakPlugin)
     .use(markdownItWordPressListPlugin);
 }
+
+test('MP3 embeds use native audio with attachment ID and escaped URL for both syntaxes', () => {
+  const parser = createParser().use(MarkdownItImagePluginInstance.plugin);
+  const url = 'https://example.com/voice.MP3?x=1&y=2';
+  for (const source of [`![](${url})`, `![[${url}]]`]) {
+    const output = renderMarkdownToWordPressBlocks(source, parser, {
+      mediaAttachmentIds: { [url]: '42' }
+    });
+    assert.equal(output, '<!-- wp:audio {"id":42,"preload":"none"} -->\n'
+      + '<figure class="wp-block-audio"><audio controls src="https://example.com/voice.MP3?x=1&amp;y=2" preload="none"></audio></figure>\n'
+      + '<!-- /wp:audio -->');
+    const classic = renderWordPressPostContent(source, parser, WordPressContentFormat.ClassicHtml);
+    assert.match(classic, /<audio controls/);
+    assert.doesNotMatch(classic, /<img/);
+  }
+});
+
+test('remote MP3 without mapped ID remains audio and ordinary images remain images', () => {
+  const parser = createParser().use(MarkdownItImagePluginInstance.plugin);
+  const output = renderMarkdownToWordPressBlocks('![](https://example.com/voice.mp3)\n\n![alt](photo.jpg)', parser);
+  assert.match(output, /<!-- wp:audio {"preload":"none"} -->/);
+  assert.match(output, /<!-- wp:image -->/);
+  assert.match(output, /<img src="photo.jpg" alt="alt">/);
+  const mixed = renderMarkdownToWordPressBlocks('Listen ![](voice.mp3) here', parser);
+  assert.match(mixed, /<audio controls/);
+  assert.doesNotMatch(mixed, /<img/);
+});
+
+test('MP3 wp-media emits only explicit caption as escaped audio figcaption', () => {
+  const parser = createParser().use(MarkdownItImagePluginInstance.plugin);
+  for (const embed of ['![](https://example.com/voice.mp3)', '![[https://example.com/voice.mp3]]']) {
+    const extracted = extractMediaMetadataBlocks(`${embed}\n%% wp-media\ntitle: Attachment title\ncaption: Listen & <enjoy>\ndescription: Library description\n%%`);
+    const output = renderMarkdownToWordPressBlocks(extracted.content, parser, {
+      imageCaptions: extracted.metadataMap
+    });
+    assert.match(output, /<\/audio><figcaption class="wp-element-caption">Listen &amp; &lt;enjoy&gt;<\/figcaption><\/figure>/);
+    assert.doesNotMatch(output, /Attachment title|Library description|<strong>|<img/);
+  }
+  const output = renderMarkdownToWordPressBlocks('![Not a caption](https://example.com/voice.mp3)', parser);
+  assert.doesNotMatch(output, /figcaption|Not a caption/);
+});
 
 test('renders headings and rich paragraphs as independently editable blocks', () => {
   const output = renderMarkdownToWordPressBlocks(

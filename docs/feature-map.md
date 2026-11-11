@@ -10,8 +10,40 @@ This document is the canonical map of current user-facing behavior, major code e
 * Release 1.1.0 passed 234 automated tests plus lint, TypeScript validation, a production build, and release checks; its GitHub release workflow also passed Companion PHP lint.
 * The 1.1.1 publish-window loading improvement passed 252 automated tests plus Obsidian/NAS manual acceptance on 2026-09-11. It opens the form before remote requests finish and loads taxonomy choices on demand; see Publish Modal And Preview below.
 * XML-RPC remains supported for its established compatibility workflows; WP Title Layer Series over XML-RPC is intentionally deferred rather than silently approximated.
-* There is no formal P4 roadmap or unfinished development task card.
+* There is no formal P4 roadmap. Known defects awaiting implementation are tracked below.
 * The supported-transport release matrix remains a separate compatibility gate, not an open P3 feature.
+
+## Known Defects Awaiting Fix
+
+* **Block publication when required local media cannot be uploaded or resolved**
+  (reported 2026-09-19; not implemented). `updatePostImages` currently records
+  upload failures as warnings and leaves local references in the body; the
+  subsequent publish still saves those unresolved paths. Missing local files
+  are silently skipped. This affects images as well as MP3 embeds.
+* The HOME-03 acceptance task reported REST upload HTTP 403 followed by a saved
+  audio block with a local relative URL. Uploading the same MP3 through the
+  WordPress admin uploader succeeded (attachment `1206807`). The coordinating
+  task subsequently relayed Wordfence live-log confirmation from the website
+  task: on 2026-09-19 at 19:39:39 and 19:41:28 Asia/Shanghai (user agent
+  `obsidian.md`), and 19:42:26 (`node`), `/wp-json/wp/v2/media` was blocked by
+  the `Malicious File Upload (PHP)` rule. The matching field or bytes were not
+  obtained; this identifies the blocking rule, not malicious audio or the
+  precise trigger. This is separate from the publication-safety bug. No WAF
+  disabling or allowlisting was performed. HOME-03 was restored using the
+  admin-uploaded media and playback was verified; its note temporarily uses
+  the actual HTTPS media URL.
+* Future upload-error diagnostics should retain a redacted response summary,
+  request timestamp with timezone, and `CF-Ray` when available. Never retain
+  credentials, authorization headers, or raw private request payloads. This
+  diagnostic improvement is recorded only, not implemented.
+* Proposed fix: stop before sending the post when a required local media upload
+  fails or its file cannot be resolved. Preserve the remote post and successful
+  upload cache entries for retry. Do not guess an old attachment, silently omit
+  media, or treat a broken source URL as a metadata-only warning.
+* Required regression coverage: HTTP 403, missing local file, and mixed upload
+  success/failure must make zero post-publish calls; metadata-only failures with
+  a usable remote source may remain warnings. No fix or production changes are
+  authorized by this tracking entry.
 
 ## Entry Layer
 

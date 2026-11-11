@@ -42,6 +42,7 @@ import {
   parseFeaturedImageReference
 } from './editorial-metadata';
 import { renderWordPressPostContent } from './wordpress-blocks';
+import { isMp3Source } from './audio-embed';
 import {
   findCachedMedia,
   forgetCachedMedia,
@@ -948,7 +949,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         postParams.tags = tagTerms.map(term => term.id);
       }
     }
-    const imageCaptions = updatesBody
+    const mediaRenderOptions = updatesBody
       ? await this.updatePostImages({
         auth,
         postParams,
@@ -962,7 +963,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         postParams.content,
         AppState.markdownParser,
         this.plugin.settings.contentFormat,
-        { imageCaptions }
+        mediaRenderOptions
       )
       : '';
     const result = await this.publish(
@@ -1047,14 +1048,46 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     sourceFile: TFile,
     replaceMediaLinks: boolean,
     syncContext: PublishSyncContext;
-  }): Promise<Record<string, ImageCaptionMetadata>> {
+  }): Promise<{
+    imageCaptions: Record<string, ImageCaptionMetadata>;
+    mediaAttachmentIds: Record<string, string | number>;
+  }> {
     const { postParams, auth, sourceFile } = params;
     const imageCaptions = imageCaptionsFromMetadata(postParams.mediaMetadata);
+    const mediaAttachmentIds: Record<string, string | number> = {};
+    for (const cached of Object.values(this.profile.mediaCache ?? {})) {
+      if (cached.id !== undefined) mediaAttachmentIds[cached.url] = cached.id;
+    }
     const replacements: TextReplacement[] = [];
 
     const images = getMarkdownImages(postParams.content);
     for (const img of images) {
       if (img.srcIsUrl) {
+        if (isMp3Source(img.src)) {
+          const metadata = resolveMediaMetadata({
+            metadataMap: postParams.mediaMetadata,
+            sourcePath: img.src,
+            vaultPath: img.src,
+            fileName: ''
+          });
+          delete metadata.altText;
+          if (metadata.caption) imageCaptions[img.src] = { caption: metadata.caption };
+          const cached = Object.values(this.profile.mediaCache ?? {}).find(entry =>
+            entry.url === img.src || entry.sourceUrls?.includes(img.src)
+          );
+          if (cached?.id !== undefined) mediaAttachmentIds[img.src] = cached.id;
+          if (Object.keys(metadata).length > 0
+            && mediaMetadataNeedsUpdate(cached?.metadata, metadata)
+          ) {
+            const applied = await this.applyMediaMetadata(cached?.id, metadata, auth, img.src);
+            if (applied && cached) {
+              this.profile.mediaCache = rememberMediaMetadata(
+                this.profile.mediaCache, cached.contentHash, metadata
+              );
+              await this.plugin.saveSettings();
+            }
+          }
+        }
         continue;
       }
       let sourcePath = img.src;
@@ -1085,6 +1118,9 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         inlineAltText: img.altText,
         inlineTitle: img.markdownTitle
       });
+      if (isMp3Source(sourcePath) || fileType?.mimeType.startsWith('audio/')) {
+        delete metadata.altText;
+      }
       const result = await this.uploadVaultMedia(
         imgFile,
         content,
@@ -1093,6 +1129,9 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         auth
       );
       if (result.code === WordPressClientReturnCode.OK) {
+        if (result.data.id !== undefined) {
+          mediaAttachmentIds[result.data.url] = result.data.id;
+        }
         const imageCaption = resolveImageCaptionMetadata({
           metadata,
           metadataMap: postParams.mediaMetadata,
@@ -1143,7 +1182,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         );
       }
     }
-    return imageCaptions;
+    return { imageCaptions, mediaAttachmentIds };
   }
 
   async fetchPost(

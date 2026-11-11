@@ -1,5 +1,6 @@
 import type MarkdownIt from 'markdown-it';
 import type Token from 'markdown-it/lib/token.mjs';
+import { audioEmbedHtml, isMp3Source } from './audio-embed';
 import { legacyImageParagraphSource } from './legacy-image-syntax';
 import { splitProtectedWordPressSources } from './wordpress-block-parser';
 
@@ -17,6 +18,7 @@ export interface WordPressImageCaption {
 
 export interface WordPressRenderOptions {
   imageCaptions?: Readonly<Record<string, WordPressImageCaption>>;
+  mediaAttachmentIds?: Readonly<Record<string, string | number>>;
 }
 
 interface RenderContext {
@@ -124,6 +126,14 @@ function renderImageBlock(
       + context.markdown.utils.escapeHtml(imageCaption.caption)
       + '</figcaption>'
     : '';
+  if (isMp3Source(source)) {
+    const id = Number(context.options.mediaAttachmentIds?.[source]);
+    return wrapBlock('audio', '<figure class="wp-block-audio">'
+      + audioEmbedHtml(source, context.markdown.utils.escapeHtml) + captionHtml + '</figure>', {
+      ...(Number.isSafeInteger(id) && id > 0 ? { id } : {}),
+      preload: 'none'
+    });
+  }
   const figureHtml = '<figure class="wp-block-image">'
     + imageHtml
     + captionHtml
