@@ -239,6 +239,26 @@ Companion 0.5.0 会报告当前副标题提供者，并在 WP Title Layer 激活
 不安装 Companion 仍可正常发布普通文章；不受支持的控制项会明确显示为不可用，
 而不是静默失败。
 
+Companion 是独立的 **WordPress 端插件**，安装 Obsidian 中的 WP Publisher
+不会自动在网站上安装或启用它。目前通过 GitHub Releases 分发，暂未上架
+WordPress.org 插件目录。
+
+1. 打开 [Publisher 最新发布页](https://github.com/irisable/wp-publisher-for-obsidian/releases/latest)，
+   在 **Assets** 中下载 **`wp-publisher-companion.zip`**
+   （[直接下载](https://github.com/irisable/wp-publisher-for-obsidian/releases/latest/download/wp-publisher-companion.zip)）。
+   不要选择 Publisher 安装包或 GitHub 的源码压缩包。
+2. 进入目标网站的 WordPress 后台，选择 **插件 → 安装插件 → 上传插件**，
+   选择该 ZIP，点击 **现在安装 → 启用插件**。
+   需要具备安装插件权限；没有权限时请联系网站管理员。
+3. 回到 WP Publisher，重新测试该网站的连接。若向多个网站发布，
+   请在需要这些功能的网站上分别安装 Companion。
+
+普通文章发布不需要 Companion。**Irisable Title Layer（原 WP Title Layer）**
+的副标题与系列功能通过核心 REST 字段提供，需要安装的是 Title Layer 本身，
+而非 Companion。Companion 不会为 XML-RPC 增加系列支持，也不会绕过认证或安全插件限制。
+更新时，从新版发布页下载 Companion ZIP，在同一 WordPress 上传界面安装并按提示替换旧版；
+只更新 Obsidian 插件不会更新网站上的 Companion。
+
 ## 隐私与网络访问
 
 - 插件不包含遥测、分析、广告或第三方 AI 服务。

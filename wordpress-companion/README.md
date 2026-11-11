@@ -20,4 +20,22 @@ The companion does not bypass Wordfence. If Wordfence disables WordPress Applica
 
 ## Install
 
-Upload `wp-publisher-companion.zip` from WordPress **Plugins > Add New > Upload Plugin**, then activate it. Version 0.5.0 is recommended for correct WP Title Layer detection; WP Publisher continues to support older companions for legacy Secondary Title sites.
+Companion is an optional **WordPress-side plugin**, not an Obsidian plugin. Installing or updating WP Publisher in Obsidian does not install or update Companion on your site. It is currently distributed through GitHub Releases, not the WordPress.org plugin directory.
+
+### When you need it
+
+- Install it for Publisher's protected Rank Math focus keyword and meta description fields, legacy Secondary Title access, or attachment title/alt/caption/description updates over XML-RPC. Rank Math itself must also be active for its SEO fields.
+- Ordinary post publishing does not require it.
+- Irisable Title Layer (formerly WP Title Layer) subtitles and Series use the post type's core REST fields. Install Title Layer itself for those features; Companion is not required and does not add Series support to XML-RPC.
+
+### Download and activate
+
+1. Open the [latest Publisher release](https://github.com/irisable/wp-publisher-for-obsidian/releases/latest) and download **`wp-publisher-companion.zip`** under **Assets** ([direct download](https://github.com/irisable/wp-publisher-for-obsidian/releases/latest/download/wp-publisher-companion.zip)). Do not use the Publisher ZIP or GitHub's source-code archives.
+2. Sign in to the target WordPress dashboard with permission to install plugins. Choose **Plugins → Add New Plugin → Upload Plugin**, select the ZIP, and choose **Install Now → Activate Plugin**. If you lack permission, ask the site administrator.
+3. Return to WP Publisher and test the site's connection again. For multiple sites, install Companion separately on each site that needs these features.
+
+Version 0.5.0 is recommended for correct Title Layer detection; WP Publisher continues to support older companions for legacy Secondary Title sites. Authentication and security-plugin restrictions still apply.
+
+### Updates
+
+Download the Companion ZIP from a newer Publisher release and upload it through the same WordPress screen, confirming replacement when prompted. Updating only the Obsidian plugin does not update this WordPress component. For installation instructions in Chinese, see the [Publisher Chinese guide](../README.zh-CN.md#可选-wordpress-companion).
