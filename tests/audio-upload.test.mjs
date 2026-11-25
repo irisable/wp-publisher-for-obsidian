@@ -4,11 +4,19 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { extractMediaMetadataBlocks, buildRestMediaMetadata } from '../src/media-metadata.ts';
 
+const resolveDir = fileURLToPath(new URL('..', import.meta.url));
 const stubs = {
-  obsidian: 'export class Notice {} export class TFile {} export const stringifyYaml = JSON.stringify; export const parseYaml = JSON.parse; export const getFrontMatterInfo = () => ({});',
+  obsidian: 'export class Notice {} export class TFile {} export const stringifyYaml = JSON.stringify; export const parseYaml = JSON.parse; export const getFrontMatterInfo = value => ({ contentStart: value.startsWith("---\\n") ? value.indexOf("\\n---\\n", 4) + 5 : 0 });',
   './wp-publish-modal': 'export class WpPublishModal {}',
   './utils': 'export function isPromiseFulfilledResult(v) { return v.status === "fulfilled"; } export function openWithBrowser() {} export function processFile() {} export function showError() {}',
-  './app-state': 'export const AppState = {};',
+  './app-state': `
+    import MarkdownIt from 'markdown-it';
+    import { MarkdownItImagePluginInstance } from './src/markdown-it-image-plugin';
+    import { MarkdownItCommentPluginInstance } from './src/markdown-it-comment-plugin';
+    export const AppState = { markdownParser: new MarkdownIt()
+      .use(MarkdownItImagePluginInstance.plugin)
+      .use(MarkdownItCommentPluginInstance.plugin) };
+  `,
   './confirm-modal': 'export const ConfirmCode = {}; export function openConfirmModal() {}',
   './post-published-modal': 'export function openPostPublishedModal() {}',
   './wp-login-modal': 'export function openLoginModal() {}'
@@ -16,13 +24,13 @@ const stubs = {
 const bundle = await build({
   stdin: {
     contents: 'export { AbstractWordPressClient } from "./src/abstract-wp-client"; export { TFile } from "obsidian";',
-    resolveDir: fileURLToPath(new URL('..', import.meta.url))
+    resolveDir
   },
   bundle: true, format: 'esm', platform: 'node', target: 'es2022', write: false,
   plugins: [{ name: 'audio-host-adapter', setup(builder) {
     builder.onResolve({ filter: /.*/ }, args => Object.hasOwn(stubs, args.path)
       ? { path: args.path, namespace: 'stub' } : undefined);
-    builder.onLoad({ filter: /.*/, namespace: 'stub' }, args => ({ contents: stubs[args.path] }));
+    builder.onLoad({ filter: /.*/, namespace: 'stub' }, args => ({ contents: stubs[args.path], resolveDir }));
   }}]
 });
 const { AbstractWordPressClient, TFile } = await import('data:text/javascript;base64,' + Buffer.from(bundle.outputFiles[0].text).toString('base64'));
@@ -38,6 +46,7 @@ test('MP3 upload and repeat publication reuse the same attachment for both embed
       vault: { readBinary: async () => bytes },
       workspace: { getActiveFile: () => null }
     },
+    settings: { contentFormat: 'block-editor' },
     saveSettings: async () => {},
     i18n: { t: key => key }
   };
@@ -53,7 +62,7 @@ test('MP3 upload and repeat publication reuse the same attachment for both embed
   for (const content of ['![[audio/voice.mp3]]', '![](audio/voice.mp3)']) {
     const params = { content };
     const options = await makeClient().updatePostImages({
-      postParams: params, auth: {}, sourceFile: { path: 'note.md' }, replaceMediaLinks: false, syncContext: {}
+      postParams: params, auth: {}, sourceFile: { path: 'note.md' }
     });
     assert.match(params.content, /https:\/\/example.com\/voice-1.mp3/);
     assert.equal(options.mediaAttachmentIds['https://example.com/voice-1.mp3'], 41);
@@ -61,7 +70,7 @@ test('MP3 upload and repeat publication reuse the same attachment for both embed
   }
   bytes = new Uint8Array([73, 68, 51, 4, 0, 0, 0, 0, 0, 1]).buffer;
   await makeClient().updatePostImages({
-    postParams: { content: '![](audio/voice.mp3)' }, auth: {}, sourceFile: { path: 'note.md' }, replaceMediaLinks: false, syncContext: {}
+    postParams: { content: '![](audio/voice.mp3)' }, auth: {}, sourceFile: { path: 'note.md' }
   });
   assert.equal(uploads, 2, 'same filename with different content must not reuse the attachment');
 });
@@ -76,6 +85,7 @@ function metadataFixture(profile = {}) {
       vault: { readBinary: async () => new Uint8Array([73, 68, 51, 4, 0, 0, 0, 0, 0, 0]).buffer },
       workspace: { getActiveFile: () => null }
     },
+    settings: { contentFormat: 'block-editor' },
     saveSettings: async () => {},
     i18n: { t: key => key }
   };
@@ -93,7 +103,7 @@ function metadataFixture(profile = {}) {
     const extracted = extractMediaMetadataBlocks(source);
     const params = { content: extracted.content, mediaMetadata: extracted.metadataMap };
     const options = await client.updatePostImages({
-      postParams: params, auth: {}, sourceFile: { path: 'note.md' }, replaceMediaLinks: false, syncContext: {}
+      postParams: params, auth: {}, sourceFile: { path: 'note.md' }
     });
     return { params, options };
   };
@@ -145,9 +155,142 @@ test('failed remote attachment metadata update is not cached as applied', async 
   const fixture = metadataFixture({ mediaCache: { hash: {
     contentHash: 'hash', id: 42, url: 'https://example.com/voice.mp3', fileName: 'voice.mp3'
   } } });
-  fixture.client.updateMediaMetadata = async () => ({ code: 1, error: { message: 'Denied' } });
+  fixture.client.updateMediaMetadata = async () => { throw new Error('Denied'); };
   const result = await fixture.run('![](https://example.com/voice.mp3)\n%% wp-media\ncaption: Listen\n%%');
   assert.equal(fixture.profile.mediaCache.hash.metadata, undefined);
   assert.equal(result.options.imageCaptions['https://example.com/voice.mp3'].caption, 'Listen');
   assert.ok(fixture.client.publishWarnings.has('warning_mediaMetadataUpdateFailed'));
+});
+
+function publishFixture(format = 'block-editor') {
+  const uploads = [];
+  const posts = [];
+  const frontMatter = '---\nexample: "![](cover image.png)"\n---\n';
+  let note = '';
+  const file = Object.assign(new TFile(), { path: 'note.md', name: 'note.md', basename: 'note' });
+  const files = new Map(['cover image.png', 'voice.mp3'].map(name => [name,
+    Object.assign(new TFile(), { path: name, name })]));
+  const profile = { id: 'test', name: 'Test site', endpoint: 'https://example.com' };
+  const plugin = {
+    settings: { contentFormat: format, publishHistory: [], multiSiteTargets: {} },
+    app: {
+      metadataCache: { getFirstLinkpathDest: path => files.get(path) },
+      vault: { readBinary: async file => new TextEncoder().encode(file.name).buffer },
+      workspace: {
+        getActiveFile: () => file,
+        activeEditor: { editor: { getValue: () => note, setValue: value => { note = value; } } }
+      }
+    },
+    saveSettings: async () => {},
+    i18n: { t: (key, vars = {}) => `${key} ${Object.values(vars).join(' ')}`.trim() }
+  };
+  const client = new AbstractWordPressClient(plugin, profile);
+  client.getAuth = async () => ({});
+  client.getCategories = async () => [];
+  client.mediaExists = async () => true;
+  client.rememberPublishedSyncBaseline = async () => true;
+  client.uploadMedia = async ({ fileName }) => {
+    uploads.push(fileName);
+    return { code: 0, data: {
+      id: uploads.length,
+      url: `https://example.com/${encodeURIComponent(fileName)}`,
+      metadataApplied: true
+    } };
+  };
+  client.publish = async (_title, content) => {
+    posts.push(content);
+    return { code: 0, data: { postId: '42', categories: [] } };
+  };
+  return {
+    uploads, posts, profile, client, frontMatter,
+    get note() { return note; },
+    async publish(content) {
+      note = frontMatter + content;
+      return client.publishPost({
+        updateStrategy: 'content-only', postType: 'post', categories: [], tags: []
+      }, {
+        sourceFile: file, sourceSnapshot: { title: 'note', content, matter: {} },
+        target: { mode: 'update', postId: '42', postType: 'post' },
+        showNotices: false, writeBackToNote: false, replaceMediaLinks: true
+      });
+    }
+  };
+}
+
+test('an upload HTTP 403 stops an update and caches successful uploads for retry', async () => {
+  const fixture = publishFixture();
+  const upload = fixture.client.uploadMedia;
+  fixture.client.uploadMedia = async media => media.fileName === 'voice.mp3'
+    ? { code: 1, error: { code: 2, message: 'HTTP 403' } }
+    : upload(media);
+  const body = '![](cover image.png)\n\n![[voice.mp3]]';
+
+  const failed = await fixture.publish(body);
+  assert.equal(failed.code, 1);
+  assert.match(failed.error.message, /voice\.mp3.*HTTP 403/);
+  assert.deepEqual(fixture.posts, []);
+  assert.equal(fixture.note, fixture.frontMatter + body);
+  assert.deepEqual(fixture.uploads, ['cover image.png']);
+
+  fixture.client.uploadMedia = upload;
+  const retried = await fixture.publish(body);
+  assert.equal(retried.code, 0);
+  assert.deepEqual(fixture.uploads, ['cover image.png', 'voice.mp3']);
+  assert.match(fixture.posts[0], /<!-- wp:image -->/);
+  assert.match(fixture.posts[0], /<!-- wp:audio /);
+});
+
+test('a missing local media embed blocks Gutenberg and Classic HTML post requests', async () => {
+  for (const format of ['block-editor', 'classic-html']) {
+    const fixture = publishFixture(format);
+    const result = await fixture.publish('![](missing.png)');
+    assert.equal(result.code, 1);
+    assert.match(result.error.message, /error_bodyMediaNotFound missing\.png/);
+    assert.deepEqual(fixture.posts, []);
+    assert.deepEqual(fixture.uploads, []);
+  }
+});
+
+test('an upload response without a usable URL blocks the post and is not cached', async () => {
+  const fixture = publishFixture();
+  fixture.client.uploadMedia = async () => ({ code: 0, data: { id: 42, url: 'voice.mp3' } });
+  const result = await fixture.publish('![[voice.mp3]]');
+  assert.equal(result.code, 1);
+  assert.match(result.error.message, /error_mediaUploadMissingUrl/);
+  assert.equal(fixture.profile.mediaCache, undefined);
+  assert.deepEqual(fixture.posts, []);
+});
+
+test('a locally sourced reference-style image cannot bypass the publish guard', async () => {
+  const fixture = publishFixture();
+  const result = await fixture.publish('![Cover][cover]\n\n[cover]: cover.png');
+  assert.equal(result.code, 1);
+  assert.match(result.error.message, /error_bodyMediaUnresolved cover\.png/);
+  assert.deepEqual(fixture.posts, []);
+});
+
+test('literal embeds and front matter are preserved even when the same file is embedded', async () => {
+  const fixture = publishFixture();
+  const literal = 'Use `![](cover image.png)` or this example:\n\n```markdown\n![](cover image.png)\n![](missing.png)\n```';
+  const body = literal + '\n\n![](cover image.png)';
+  const result = await fixture.publish(body);
+  assert.equal(result.code, 0);
+  assert.deepEqual(fixture.uploads, ['cover image.png']);
+  assert.match(fixture.posts[0], /<code>!\[\]\(cover image\.png\)<\/code>/);
+  assert.match(fixture.posts[0], /!\[\]\(missing\.png\)/);
+  assert.match(fixture.posts[0], /<img src="https:\/\/example\.com\/cover%20image\.png"/);
+  assert.equal(fixture.note, fixture.frontMatter + literal + '\n\n![](https://example.com/cover%20image.png)');
+});
+
+test('an attachment metadata error keeps a valid audio post publishable with a warning', async () => {
+  const fixture = publishFixture();
+  fixture.client.uploadMedia = async () => ({
+    code: 0, data: { id: 42, url: 'https://example.com/voice.mp3' }
+  });
+  fixture.client.updateMediaMetadata = async () => { throw new Error('Metadata denied'); };
+  const result = await fixture.publish('![[voice.mp3]]\n%% wp-media\ncaption: Listen\n%%');
+  assert.equal(result.code, 0);
+  assert.equal(result.data.partialFailure, true);
+  assert.match(result.data.warnings[0], /Metadata denied/);
+  assert.match(fixture.posts[0], /<figcaption class="wp-element-caption">Listen<\/figcaption>/);
 });

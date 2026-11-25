@@ -72,7 +72,7 @@ function plugin(md: MarkdownIt): void {
       }
       const token = state.push(tokenType, 'img', 0);
       const matched = match[0];
-      const src = match[1];
+      const src = match[1].trim();
       const size = match[3];
       let width: string | undefined;
       let height: string | undefined;
@@ -111,21 +111,11 @@ function plugin(md: MarkdownIt): void {
       return false;
     }
   });
-  md.renderer.rules.ob_img = (tokens: Token[], idx: number) => {
+  md.renderer.rules.ob_img = (tokens, idx, _options, _env, renderer) => {
     const token = tokens[idx];
-    const src = token.attrs?.[0]?.[1];
-    if (isMp3Source(src ?? '')) {
-      return audioEmbedHtml(src ?? '', md.utils.escapeHtml);
-    }
-    const width = token.attrs?.[1]?.[1];
-    const height = token.attrs?.[2]?.[1];
-    if (width) {
-      if (height) {
-        return `<img src="${src}" width="${width}" height="${height}" alt="">`;
-      }
-      return `<img src="${src}" width="${width}" alt="">`;
-    } else {
-      return `<img src="${src}" alt="">`;
-    }
+    const src = token.attrGet('src') ?? '';
+    return isMp3Source(src)
+      ? audioEmbedHtml(src, md.utils.escapeHtml)
+      : `<img${renderer.renderAttrs(token)} alt="">`;
   };
 }

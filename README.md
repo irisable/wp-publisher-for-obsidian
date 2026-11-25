@@ -1,9 +1,5 @@
 # WP Publisher
 
-Current prerelease: **1.2.0-rc.1**, paired with
-[WP Title Layer 1.0.0-rc.4](https://github.com/irisable/wp-title-layer/releases/tag/v1.0.0-rc.4).
-Stable users may stay on 1.1.2 while the new role/group workflow completes manual acceptance.
-
 **English** | [简体中文](#简体中文)
 
 ## English
@@ -17,9 +13,10 @@ It has expanded from one-way publishing into a guarded editorial workflow with
 Gutenberg output, media deduplication, preview, multi-site publishing, and
 reviewed WordPress-to-Obsidian synchronization.
 
-> **Release status:** WP Publisher is available from Obsidian's Community
-> Plugins directory. The P0-P3 feature set has passed local, clean-Vault, and
-> real-site testing.
+[WP Publisher 1.2.0](https://github.com/irisable/wp-publisher-for-obsidian/releases/tag/1.2.0)
+introduced native MP3 blocks, Series content groups, and advanced Series roles.
+[1.2.1](https://github.com/irisable/wp-publisher-for-obsidian/releases/tag/1.2.1)
+stops post submission if required local media cannot be found or uploaded.
 
 ## Highlights
 
@@ -28,8 +25,8 @@ reviewed WordPress-to-Obsidian synchronization.
 - Create or update posts with an explicit target banner and full or
   content-only update modes.
 - Publish titles, slugs, excerpts, categories, tags, featured images, scheduled
-  dates, comments, post types, Rank Math fields, WP Title Layer subtitles, and
-  portable Series placement.
+  dates, comments, post types, Rank Math fields, Irisable Title Layer subtitles,
+  and portable Series placement.
 - Reuse unchanged media by content hash and update attachment metadata.
 - Preview rendered content, metadata, Gutenberg blocks, and HTML fallbacks
   before publishing.
@@ -44,6 +41,8 @@ The complete implementation map and acceptance history are in
 
 ## Installation
 
+Requires Obsidian 1.8.7 or later.
+
 ### Install From Obsidian
 
 1. Open **Settings > Community plugins**.
@@ -55,10 +54,10 @@ You can also open the
 
 ### Manual Installation
 
-1. Download `main.js`, `manifest.json`, and `styles.css` from the same GitHub
-   [release](https://github.com/irisable/wp-publisher-for-obsidian/releases).
-2. Place all three files in one folder under
-   `<Vault>/.obsidian/plugins/`.
+1. Download `main.js`, `manifest.json`, and `styles.css` from the same
+   [GitHub release](https://github.com/irisable/wp-publisher-for-obsidian/releases/latest).
+2. Place the three files in `<Vault>/.obsidian/plugins/wp-publisher/`.
+   For an update, keep your existing `data.json`.
 3. Reload Obsidian, open **Settings > Community plugins**, and enable
    **WP Publisher**.
 
@@ -102,15 +101,15 @@ refreshed by this release.
 
 ## Publish A Note
 
-Open a Markdown note and run **Publish to WordPress** from the command palette.
+Open a Markdown note and run **Publish current note** from the command palette.
 The publish dialog shows whether the action will create a new post or update an
 existing one. Existing posts can use a full update or a content-only update.
 
-The faster **Publish with default options** command uses the default profile,
+The **Publish current note with default options** command uses the default profile,
 profile defaults, note properties, and any resolved publishing controls without
 opening the full dialog.
 
-Gutenberg Block Editor output is the default. Change **Content format** in the
+Gutenberg Block Editor output is the default. Change **WordPress content format** in the
 plugin settings only when a site requires classic HTML.
 
 ## Front Matter
@@ -124,6 +123,7 @@ subtitle: An optional subtitle
 series: an-existing-series-slug
 seriesSeason: 2
 seriesLabel: "15A"
+seriesGroup: W1 Seeing human weakness
 slug: a-portable-slug
 excerpt: A short WordPress excerpt
 metaDescription: A Rank Math SEO description
@@ -145,27 +145,30 @@ commentStatus: open
 Compatibility aliases remain readable for `focus_keyword`,
 `meta_description`, `secondaryTitle`, `secondary_title`, and `comment_status`.
 
-`subtitle` writes WP Title Layer's canonical `wptl_subtitle` field when
-the selected post type exposes it. A legacy Secondary Title site can still use
+Install [Irisable Title Layer](https://wordpress.org/plugins/irisable-title-layer/)
+(formerly WP Title Layer) for subtitles and Series. `subtitle` writes its
+canonical `wptl_subtitle` field when the selected post type exposes it.
+A legacy Secondary Title site can still use
 the Companion fallback, but the two fields are never dual-written. Existing
 notes keep using either compatible property name; new notes and newly pulled
 subtitles prefer `subtitle`.
 
-`series` refers to one Series already defined by WP Title Layer. Flat Series
+`series` refers to one Series already defined in WordPress. Flat Series
 need only the slug; seasoned Series also use the Season's stable public
 `seriesSeason` ID. Omitting `series` while updating preserves the remote
-placement, while `series: ""` explicitly removes it. Core REST supports normal
-`article` placement. WP Title Layer rc.4 can additionally enable `seriesRole`
-(`intro`, `epilogue`, `appendix`) through its public book-structure capability.
+placement, while `series: ""` explicitly removes it. REST accounts support
+normal `article` placement. In a Series with book structure enabled, use
+`seriesRole` (`intro`, `epilogue`, `appendix`) for advanced roles.
 Non-article roles use `seriesScope: series` or `season`; whole-Series scope
-cannot include a Season. Older/unknown capabilities block advanced writes,
-not readback. XML-RPC Series remains unsupported. A seasoned Series is published to multiple sites one site at a time so
+cannot include a Season. Advanced writes require the Series to advertise its
+book-structure capability. XML-RPC Series remains unsupported. Publish to a
+seasoned Series one site at a time so
 each site's Season label can be reviewed. Series definitions and ordering remain
 owned by WordPress.
 
 `seriesGroup: "W1 Seeing human weakness"` assigns a content group within the
-selected Series and Season (WP Title Layer rc.3 or later with the REST field
-enabled). Omit this property to preserve the remote group, or use
+selected Series and Season when the post type exposes the content-group REST
+field. Omit this property to preserve the remote group, or use
 `seriesGroup: ""` to clear it. Only strings are accepted; a blank YAML value
 is not a clear instruction. Publishing reads back the canonical group name
 and updates the note only if you have not edited that property in the meantime.
@@ -175,11 +178,10 @@ Groups apply only to main articles. Non-article roles hide the group control
 and preserve historical values without sending or clearing them.
 
 `wpTags` contains WordPress tag names and may include spaces. The transport
-resolves them to the selected site's term IDs and slugs, so site-specific
-identifiers are not stored in the note. Obsidian's `tags` property and inline
-`#tags` stay local and are never changed or published by the plugin. For
-existing notes, front matter `tags` is accepted as a legacy fallback only when
-`wpTags` is absent; the next successful full publish of a post writes `wpTags`.
+resolves them to the selected site's terms, so site-specific identifiers stay
+out of the note. Obsidian's inline `#tags` stay local. The plugin preserves
+the `tags` property and reads it for legacy notes only when `wpTags` is absent.
+A successful full publish with note write-back enabled stores `wpTags`.
 Use `wpTags: []` to publish no WordPress tags.
 
 After a successful publish, the plugin may maintain these relationship and
@@ -238,12 +240,34 @@ description: Longer attachment description
 %%
 ```
 
+### MP3 Audio
+
+Put `![[audio/reading.mp3]]` or a standard Markdown embed in its own paragraph
+to publish a native WordPress audio block in Block Editor mode.
+
+```markdown
+![](audio/reading.mp3)
+%% wp-media
+title: Article narration
+caption: Listen to this article
+description: Narrated version of the article.
+%%
+```
+
+`caption` appears beneath the player. Local uploads and reused attachments can
+also receive `title`, `caption`, and `description` in the media library. A full
+remote MP3 URL can display a block caption directly. Updating that URL's
+attachment metadata requires a matching attachment in the current profile's
+media cache. For a full URL without a mapping, enter media-library metadata in
+WordPress. `altText` is for images.
+
 ## Explicit Synchronization
 
 Synchronization is always user initiated. The command palette provides:
 
 - Remote post inspection without writing either side.
-- A selective pull preview.
+- A selective pull preview. Audio blocks are preserved as protected WordPress
+  source when pulled.
 - Sync-state classification using a bounded common baseline.
 - Reviewed three-way merge for diverged notes.
 - Guarded undo for the most recent pull.
@@ -256,10 +280,10 @@ propagation, silent conflict selection, batch pull, or binary media merge.
 
 Install [`WP Publisher Companion`](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/wordpress-companion/README.md) on
 self-hosted WordPress when you need protected Rank Math fields, legacy Secondary
-Title, or XML-RPC attachment metadata. WP Title Layer canonical subtitles and
-Series use the post type's core REST contract instead. Companion 0.5.0 reports
+Title, or XML-RPC attachment metadata. Irisable Title Layer subtitles and
+Series use the post type's core REST fields. Companion 0.5.0 reports
 the active subtitle provider and disables legacy `_secondary_title` writes when
-WP Title Layer is active. Ordinary post publishing continues without it;
+Title Layer is active. Ordinary post publishing continues without it;
 unsupported controls are shown as unavailable rather than silently failing.
 
 Companion is a separate **WordPress-side plugin**. Installing WP Publisher in
@@ -276,10 +300,8 @@ through GitHub Releases, not the WordPress.org plugin directory.
 3. Return to WP Publisher and test the site's connection again. If you publish to
    several sites, install Companion separately on each site that needs its features.
 
-Ordinary publishing does not require Companion. Subtitles and Series provided by
-**Irisable Title Layer (formerly WP Title Layer)** use core REST fields and require
-Title Layer itself, not Companion. Companion does not add Series support to XML-RPC.
-It also does not bypass authentication or security-plugin restrictions.
+Install Irisable Title Layer separately on sites that need its subtitle or
+Series features. Companion follows the site's authentication and security rules.
 For updates, download the Companion ZIP from a newer release and upload it through
 the same WordPress screen, confirming replacement when prompted; updating the
 Obsidian plugin alone does not update Companion.
@@ -316,8 +338,8 @@ See [`CHANGELOG.md`](https://github.com/irisable/wp-publisher-for-obsidian/blob/
 [`docs/feature-map.md`](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/docs/feature-map.md) for the canonical feature map.
 Release maintainers should complete the
 [`docs/release-checklist.md`](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/docs/release-checklist.md).
-Tagged builds are packaged as draft GitHub releases so the assets can be
-inspected before publication.
+Tagged builds are packaged as draft GitHub releases for review. Publishing the
+draft makes those assets available on GitHub.
 
 ## License And Credits
 
@@ -340,8 +362,10 @@ entries and authorship are retained in recognition of the original
 Gutenberg 输出、媒体去重、发布预览、多站点发布，以及经过审阅的
 WordPress 到 Obsidian 同步。
 
-> **发布状态：** WP Publisher 已进入 Obsidian 社区插件目录。P0-P3
-> 功能集已经通过本地测试、空白 Vault 测试和真实站点测试。
+[WP Publisher 1.2.0](https://github.com/irisable/wp-publisher-for-obsidian/releases/tag/1.2.0)
+加入了原生 MP3 音频区块、系列内容分组和高级系列角色。
+[1.2.1](https://github.com/irisable/wp-publisher-for-obsidian/releases/tag/1.2.1)
+会在本地媒体找不到或上传失败时停止提交文章。
 
 ## 主要功能
 
@@ -349,7 +373,7 @@ WordPress 到 Obsidian 同步。
 - 保留经典 HTML 输出，以兼容较旧的 WordPress 工作流。
 - 明确显示将要新建还是更新文章，并支持完整更新或仅更新正文。
 - 发布标题、别名、摘要、分类、标签、特色图片、计划时间、评论状态、
-  文章类型、Rank Math 字段、WP Title Layer 副标题和可移植的系列归属。
+  文章类型、Rank Math 字段、Irisable Title Layer 副标题和可移植的系列归属。
 - 按内容哈希复用未变化的媒体，并可更新附件元数据。
 - 发布前预览渲染内容、元数据、Gutenberg 区块和 HTML 回退。
 - 保存各账号的默认发布设置和可复用发布模板。
@@ -363,6 +387,8 @@ WordPress 到 Obsidian 同步。
 
 ## 安装
 
+需要 Obsidian 1.8.7 或更高版本。
+
 ### 从 Obsidian 安装
 
 1. 打开 **设置 > 第三方插件**。
@@ -374,9 +400,10 @@ WordPress 到 Obsidian 同步。
 
 ### 手动安装
 
-1. 从同一个 [GitHub Release](https://github.com/irisable/wp-publisher-for-obsidian/releases)
+1. 从同一个 [GitHub 发布页](https://github.com/irisable/wp-publisher-for-obsidian/releases/latest)
    下载 `main.js`、`manifest.json` 和 `styles.css`。
-2. 将三个文件放入 `<Vault>/.obsidian/plugins/` 下的同一个文件夹。
+2. 将三个文件放入 `<Vault>/.obsidian/plugins/wp-publisher/`。
+   更新时保留原有的 `data.json`。
 3. 重新加载 Obsidian，打开 **设置 > 第三方插件**，启用
    **WP Publisher**。
 
@@ -438,6 +465,7 @@ subtitle: An optional subtitle
 series: an-existing-series-slug
 seriesSeason: 2
 seriesLabel: "15A"
+seriesGroup: W1 看见人的软弱
 slug: a-portable-slug
 excerpt: A short WordPress excerpt
 metaDescription: A Rank Math SEO description
@@ -459,33 +487,33 @@ commentStatus: open
 插件仍兼容读取 `focus_keyword`、`meta_description`、`secondaryTitle`、
 `secondary_title` 和 `comment_status` 等旧属性名。
 
-当所选文章类型公开相应能力时，`subtitle` 写入 WP Title Layer canonical
-字段 `wptl_subtitle`。旧 Secondary Title 站点仍可使用 Companion 回退，但插件
-不会同时双写两个副标题字段。已有笔记继续沿用原属性名；新笔记及新拉取的副标题
-首选 `subtitle`。
+副标题与系列由 [Irisable Title Layer](https://wordpress.org/plugins/irisable-title-layer/)
+（原 WP Title Layer）提供。当所选文章类型公开相应 REST 字段时，
+`subtitle` 写入 `wptl_subtitle`。旧 Secondary Title 站点仍可通过 Companion
+读写旧字段，每次只写入当前提供方的字段。已有笔记可继续沿用兼容属性名，
+新笔记及新拉取的副标题首选 `subtitle`。
 
-`series` 指向 WP Title Layer 中已经存在的一个系列。平铺系列只需 slug；分季系列
+`series` 指向 WordPress 中已存在的系列。平铺系列只需 slug；分季系列
 还需填写该分季稳定的公开 `seriesSeason` ID。更新文章时省略 `series` 会保留远端
-归属，`series: ""` 才表示明确移出系列。WordPress 核心 REST 支持普通 `article`
-归属；WPTL rc.4 的公共书籍式结构能力还可开放 `seriesRole`：`intro`、`epilogue`、
-`appendix`。非正文以 `seriesScope: series` 或 `season` 区分全系列和分季范围；
-全系列范围不能同时带季。旧版或未知能力阻止高级角色写入，但仍可读回。
-XML-RPC Series 仍不支持。
+归属，`series: ""` 表示明确移出系列。系列归属需要 REST 账号。启用书籍式结构
+的系列还可以使用 `seriesRole`（`intro`、`epilogue`、`appendix`）。非正文角色用
+`seriesScope: series` 或 `season` 区分全系列和分季范围。选择全系列范围时不填写
+分季。插件会依据系列公开的书籍式结构能力决定是否允许写入高级角色。
 分季 Series 的多站点发布须逐站执行，以便分别核对各站的 Season 名称。系列定义
 和篇序仍完全由 WordPress 管理。
 
 `seriesGroup: "W1 看见人的软弱"` 指定所选系列和季内的内容分组，需要支持该
-REST 字段的 WP Title Layer rc.3 或更新版本。省略属性保留远端分组；
+REST 字段的文章类型。省略属性保留远端分组；
 `seriesGroup: ""` 明确取消分组。只接受字符串，不能用 YAML 空值代替清空。
 发布后读取规范组名，仅在笔记中的原属性未被你修改时回写。目标站不支持时会
 明确提示并停止此次发布。拉取和冲突合并也可单独选择内容分组字段。
 分组仅作用于主要文章；非正文不显示分组输入框，保留历史值但不发送或清空。
 
 `wpTags` 专门保存 WordPress 标签名称，可以包含空格；发布时再解析为所选站点的
-term ID 和 slug，不把站点专属标识存入笔记。Obsidian 自身的 `tags` 属性和正文内
-的 `#标签` 只留在本地，插件不会修改或发布它们。对于旧笔记，仅当 `wpTags`
-不存在时，front matter 的 `tags` 才会作为兼容输入；下次对文章执行完整发布后
-会写入 `wpTags`。如需明确不发布任何 WordPress 标签，请设置 `wpTags: []`。
+标签，不把站点专属标识存入笔记。Obsidian 正文内的 `#标签` 留在本地。插件保留
+`tags` 属性，仅在旧笔记缺少 `wpTags` 时才把它作为兼容输入。完整发布成功后，
+启用了笔记回写的操作会写入 `wpTags`。如需明确不发布 WordPress 标签，请设置
+`wpTags: []`。
 
 发布成功后，插件可能维护以下关联和活动记录属性：
 
@@ -525,12 +553,45 @@ description: Media-library description
 显式 `title` 只作为媒体库中的附件标题，不会再被拼到可见 `figcaption` 前面；
 字面 `caption` 的可见内容就是它本身。
 
+当 `featuredImage` 指向的图片不在正文显示时，可将一个不带图片的
+`wp-media` 块放在正文第一个非空位置。该块只为特色图片提供元数据，发布时会从
+正文移除。因为正文中没有这张图片，`caption` 只更新 WordPress 附件说明文字，
+不会生成 `figcaption`：
+
+```markdown
+%% wp-media
+title: 封面图片标题
+altText: 便于无障碍阅读的封面说明
+caption: 媒体库说明文字
+description: 更完整的附件说明
+%%
+```
+
+### MP3 音频
+
+将 `![[audio/reading.mp3]]` 或标准 Markdown 嵌入单独放在一个段落，区块编辑器
+模式会生成 WordPress 原生音频区块。
+
+```markdown
+![](audio/reading.mp3)
+%% wp-media
+title: 文章朗读
+caption: 收听本文
+description: 本文的朗读版。
+%%
+```
+
+`caption` 显示在播放器下方。本地上传和复用的附件可以同步媒体库中的
+`title`、`caption` 和 `description`。填写完整的远程 MP3 网址也可显示正文图注。
+更新远程音频的附件元数据需要当前账号缓存中有对应附件。没有映射时，
+可在 WordPress 媒体库填写这些字段。`altText` 适用于图片。
+
 ## 显式双向同步
 
 同步始终由用户主动触发。命令面板提供以下功能：
 
 - 只检查远端文章，不写入任何一端。
-- 预览并选择要拉取的字段。
+- 预览并选择要拉取的字段。拉取时，音频区块以受保护的 WordPress 源码保留。
 - 使用有容量限制的共同基线判断同步状态。
 - 对已经分歧的笔记执行经过审阅的三方合并。
 - 撤销最近一次拉取。
@@ -544,8 +605,8 @@ description: Media-library description
 当自托管 WordPress 需要写入受保护的 Rank Math 字段、旧 Secondary Title，
 或通过 XML-RPC 更新附件元数据时，请安装
 [`WP Publisher Companion`](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/wordpress-companion/README.md)。
-WP Title Layer canonical 副标题和系列归属改由文章类型的核心 REST 契约处理。
-Companion 0.5.0 会报告当前副标题提供者，并在 WP Title Layer 激活时停用旧
+Irisable Title Layer 的副标题和系列归属使用文章类型的核心 REST 字段。
+Companion 0.5.0 会报告当前副标题提供方，并在 Title Layer 激活时停用旧
 `_secondary_title` 写入。
 不安装 Companion 仍可正常发布普通文章；不受支持的控制项会明确显示为不可用，
 而不是静默失败。
@@ -564,9 +625,8 @@ WordPress.org 插件目录。
 3. 回到 WP Publisher，重新测试该网站的连接。若向多个网站发布，
    请在需要这些功能的网站上分别安装 Companion。
 
-普通文章发布不需要 Companion。**Irisable Title Layer（原 WP Title Layer）**
-的副标题与系列功能通过核心 REST 字段提供，需要安装的是 Title Layer 本身，
-而非 Companion。Companion 不会为 XML-RPC 增加系列支持，也不会绕过认证或安全插件限制。
+需要副标题或系列功能的网站请另行安装 Irisable Title Layer。Companion 遵循站点的
+认证和安全设置。
 更新时，从新版发布页下载 Companion ZIP，在同一 WordPress 上传界面安装并按提示替换旧版；
 只更新 Obsidian 插件不会更新网站上的 Companion。
 

@@ -28,14 +28,9 @@ Reported by coordinating task `01a0b059-93ee-7c21-a13a-4c62cc6b7fc0`:
 - The site's player enhancement worked; playback at 1.25x reached 0:21 and
   was paused. The note retains its ordinary embed, not protected source.
 
-The coordinating task supplied this evidence location:
-the coordinating writing project's private HOME-04 audio-retest evidence README.
-The evidence README was subsequently available and read after the coordinating
-task corrected the serialization comparison. Real-site UI actions and playback
-results remain attributed to that task, not independently repeated here.
-No production changes were made while recording acceptance.
-
-These historical results describe the development candidate, not a release record.
+The coordinating writing project's private HOME-04 audio retest record supplies
+the serialization comparison. The coordinating task verified the live UI and
+playback on the development build.
 
 ## MP3 metadata follow-up
 
@@ -70,5 +65,7 @@ description: Narrated version of this article.
 
 Automated coverage includes both embed syntaxes, local upload/reuse metadata,
 mapped and unmapped remote references, failed metadata updates, caption HTML
-escaping, and no implicit caption derived from alt text. Real-site acceptance
-of this metadata follow-up remains pending.
+escaping, and no implicit caption derived from alt text. WP Publisher 1.2.0
+shipped native audio and this metadata follow-up. The release recorded automated
+coverage for the follow-up and earlier live acceptance for basic audio playback
+and reuse.

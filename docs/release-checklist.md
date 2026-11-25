@@ -13,8 +13,8 @@ release.
   from other WordPress publishing plugins.
 - [ ] Manifest and package authorship belongs to this fork; funding metadata is
   either owned by the maintainer or omitted.
-- [ ] `package.json`, `package-lock.json`, `manifest.json`, and `versions.json`
-  contain the same release version and minimum Obsidian version.
+- [ ] The manifest and both npm files share the release version. `versions.json`
+  maps that version to the manifest's minimum Obsidian version.
 - [ ] The Git tag exactly matches `manifest.json` without a `v` prefix.
 - [ ] WordPress.com remains excluded from release support unless a future
   release introduces a fork-owned secure OAuth design.
@@ -76,8 +76,9 @@ when it is included in release claims. WordPress.com is outside the current matr
 | Gutenberg and classic HTML output | [ ] | [ ] | [ ] |
 | Categories, tags, excerpt, slug, and featured image | [ ] | [ ] | [ ] |
 | Rank Math and legacy Secondary Title capability fallback | [ ] | [ ] | [ ] |
-| WP Title Layer canonical subtitle and portable Series placement | [ ] | N/A | [ ] |
-| Media reuse, stale-cache recovery, and metadata | [ ] | [ ] | [ ] |
+| Irisable Title Layer subtitle, Series placement, content groups, and supported roles | [ ] | N/A | [ ] |
+| Image and MP3 reuse, stale-cache recovery, and metadata | [ ] | [ ] | [ ] |
+| Failed body-media upload leaves the published post intact | [ ] | [ ] | [ ] |
 | Inspect and pull remote changes | [ ] | [ ] | [ ] |
 | Local-only push and remote-only pull | [ ] | [ ] | [ ] |
 | Diverged three-way merge and stale-review rejection | [ ] | [ ] | [ ] |
@@ -86,8 +87,8 @@ when it is included in release claims. WordPress.com is outside the current matr
 ## Data Safety
 
 - [ ] Existing front matter survives publish and reviewed pull operations.
-- [ ] Only plugin-owned relationship and activity fields are written
-  automatically.
+- [ ] Publish write-back touches only relationship and activity fields plus
+  the documented category, WordPress tag, and Series properties.
 - [ ] Categories remain portable slugs and unrelated tags are preserved.
 - [ ] Pull and merge never write before confirmation.
 - [ ] Rollback and undo move created media to trash rather than permanently
@@ -102,7 +103,8 @@ when it is included in release claims. WordPress.com is outside the current matr
 - [ ] Verify every Companion route rejects unauthenticated requests and checks
   the relevant edit capability.
 - [ ] Inspect the generated plugin ZIP and all three loose Obsidian assets.
-- [ ] Verify `SHA256SUMS.txt`.
+- [ ] Download the loose assets and ZIPs to one directory and run
+  `sha256sum -c SHA256SUMS.txt` there (`shasum -a 256 -c SHA256SUMS.txt` on macOS).
 - [ ] Review the automatically created draft GitHub release before publishing.
 
 ## Submission
@@ -113,8 +115,9 @@ when it is included in release claims. WordPress.com is outside the current matr
   claims.
 - [ ] Install once from the draft release assets rather than the working tree.
 - [ ] Publish the GitHub release only after all applicable checks above pass.
-- [ ] Sign in to `community.obsidian.md`, link the maintainer's GitHub account,
-  and submit the repository through **Plugins > New plugin**.
+- [ ] Check that the published release is visible on the existing Obsidian
+  community plugin entry. Use **Check for new releases** from the maintainer's
+  account if the new release is missing.
 - [ ] Confirm the default branch HEAD contains the submitted manifest and the
   matching published GitHub release contains `main.js`, `manifest.json`, and
   `styles.css`.

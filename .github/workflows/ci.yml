@@ -37,3 +37,6 @@ jobs:
 
       - name: Validate source
         run: npm run check
+
+      - name: Validate release metadata and documentation
+        run: npm run release:check

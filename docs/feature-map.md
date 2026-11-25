@@ -4,22 +4,14 @@ This document is the canonical map of current user-facing behavior, major code e
 
 ## Current Product Status
 
-* P0, P1, P2, and P3 are completed.
-* P3-1 through P3-7 passed staged real-site acceptance on 2026-07-21.
-* The post-P3 WP Title Layer subtitle and Series integration passed independent QA and manual acceptance against the NAS test site and the production WordPress site on 2026-08-29.
-* Release 1.1.0 passed 234 automated tests plus lint, TypeScript validation, a production build, and release checks; its GitHub release workflow also passed Companion PHP lint.
-* The 1.1.1 publish-window loading improvement passed 252 automated tests plus Obsidian/NAS manual acceptance on 2026-09-11. It opens the form before remote requests finish and loads taxonomy choices on demand; see Publish Modal And Preview below.
-* XML-RPC remains supported for its established compatibility workflows; WP Title Layer Series over XML-RPC is intentionally deferred rather than silently approximated.
-* There is no formal P4 roadmap. Known defects awaiting implementation are tracked below.
-* The supported-transport release matrix remains a separate compatibility gate, not an open P3 feature.
+* [WP Publisher 1.2.1](https://github.com/irisable/wp-publisher-for-obsidian/releases/tag/1.2.1) adds a publishing guard for failed local media uploads. Version 1.2.0 introduced native MP3 blocks, Series content groups, capability-gated Series roles, and a fix for stacked sync dialogs. See the [Changelog](../CHANGELOG.md).
+* P0 through P3 are complete. P3 passed staged real-site acceptance on 2026-07-21. Subtitles and basic Series placement passed NAS and production-site acceptance on 2026-08-29. The asynchronous publish dialog shipped in 1.1.1 after local Obsidian and NAS testing on 2026-09-11.
+* Irisable Title Layer (formerly WP Title Layer) provides canonical subtitles and Series over REST. XML-RPC remains available for its supported workflows, including legacy metadata through Companion.
+* There is no formal P4 roadmap. The [release checklist](release-checklist.md) tracks transport and installation validation.
 
-## Known Defects Awaiting Fix
+## Media Upload Failures
 
-* **Block publication when required local media cannot be uploaded or resolved**
-  (reported 2026-09-19; not implemented). `updatePostImages` currently records
-  upload failures as warnings and leaves local references in the body; the
-  subsequent publish still saves those unresolved paths. Missing local files
-  are silently skipped. This affects images as well as MP3 embeds.
+* In 1.2.0, an upload failure could leave a local reference in a saved article. Since 1.2.1, the plugin stops the post request when embedded local media are missing, the upload fails, or the response lacks a usable URL. Successful uploads remain cached for retry. Attachment metadata failures can still produce a warning when the media URL is usable.
 * The HOME-03 acceptance task reported REST upload HTTP 403 followed by a saved
   audio block with a local relative URL. Uploading the same MP3 through the
   WordPress admin uploader succeeded (attachment `1206807`). The coordinating
@@ -36,14 +28,7 @@ This document is the canonical map of current user-facing behavior, major code e
   request timestamp with timezone, and `CF-Ray` when available. Never retain
   credentials, authorization headers, or raw private request payloads. This
   diagnostic improvement is recorded only, not implemented.
-* Proposed fix: stop before sending the post when a required local media upload
-  fails or its file cannot be resolved. Preserve the remote post and successful
-  upload cache entries for retry. Do not guess an old attachment, silently omit
-  media, or treat a broken source URL as a metadata-only warning.
-* Required regression coverage: HTTP 403, missing local file, and mixed upload
-  success/failure must make zero post-publish calls; metadata-only failures with
-  a usable remote source may remain warnings. No fix or production changes are
-  authorized by this tracking entry.
+* Automated regression coverage exercises HTTP 403, missing files, mixed upload results, and metadata-only errors. The [release checklist](release-checklist.md) includes manual validation on a test site.
 
 ## Entry Layer
 
@@ -115,7 +100,7 @@ The pipeline coordinates:
 * Per-profile media deduplication, attachment metadata updates, and stale-cache recovery
 * Native Gutenberg serialization by default, with classic HTML compatibility available
 * Transport-specific publish payloads and protected metadata follow-up calls
-* Target-specific WP Title Layer Series resolution and public placement readback
+* Target-specific Irisable Title Layer Series resolution and public placement readback
 * Non-destructive note write-back, multi-site target updates, activity history, and strong sync baselines after verified success
 
 ## Publish Modal And Preview
@@ -131,14 +116,14 @@ The modal provides:
 * Slug, canonical or legacy Secondary Title, excerpt, and featured image
 * Rank Math Focus Keyword and SEO Description when supported
 * Tags and hierarchy-aware searchable categories
-* A searchable WP Title Layer Series selector with stable Season public IDs
+* A searchable Irisable Title Layer Series selector with stable Season public IDs
 * A local-only preview of metadata, rendered Markdown, Gutenberg block counts, and Custom HTML fallbacks
 
 The interactive form opens after reading the local note, before authentication and taxonomy requests finish. Post types, selected categories, and the current post type's Series capabilities load independently with inline progress and retry controls. Slug, excerpt, and other available inputs remain editable; responses update only their own controls instead of rebuilding the form.
 
 For core REST profiles, initial category requests resolve only the saved IDs, slugs, or legacy names and their ancestors. The initial Series query resolves only the saved Series slug; a note without Series does not fetch that collection. Full catalogs are fetched only when the user chooses **Browse all** or starts searching, then filtered locally for the rest of that dialog. Category hierarchy, deprecated-but-selected categories, and explicit Series placement are preserved. Other transports retain their existing category-list API behind the asynchronous UI.
 
-Publishing waits for the current post settings and selected categories, but browsing additional choices does not block an already-ready form. Missing category references require explicit correction or dismissal rather than silently substituting another category. Closing the modal invalidates pending UI responses and settles the cancelled flow; changing the post type prevents earlier Series responses from replacing its capabilities. This behavior is included in the 1.1.1 release candidate.
+Publishing waits for the current post settings and selected categories. Browsing additional choices can run while the form is ready. Missing category references require explicit correction or dismissal. Closing the modal invalidates pending UI responses and settles the cancelled flow. Changing the post type prevents earlier Series responses from replacing its capabilities.
 
 Local validation for the asynchronous publish form is recorded in [Publish Modal Loading QA](qa-publish-modal-loading.md).
 
@@ -146,9 +131,9 @@ Local validation for the asynchronous publish form is recorded in [Publish Modal
 
 Shared client interfaces are in [src/wp-client.ts](../src/wp-client.ts). The primary implementations are [src/wp-rest-client.ts](../src/wp-rest-client.ts) and [src/wp-xml-rpc-client.ts](../src/wp-xml-rpc-client.ts).
 
-The transport-independent model covers posts and pages, status, comments, taxonomy, slug, excerpt, featured media, Focus Keyword, SEO Description, Secondary Title, portable WP Title Layer Series placement, editable remote source, modification markers, and field-level capabilities.
+The transport-independent model covers posts and pages, status, comments, taxonomy, slug, excerpt, featured media, Focus Keyword, SEO Description, subtitles, portable Series placement, editable remote source, modification markers, and field-level capabilities.
 
-The optional [WP Publisher Companion](../wordpress-companion/README.md) exposes a strict authenticated allowlist for Rank Math SEO values, legacy Secondary Title, and attachment title, Alt Text, caption, and description. Companion 0.5.0 reports `wp-title-layer`, `legacy-secondary-title`, or `none` as the subtitle provider and disables legacy `_secondary_title` writes when WP Title Layer owns the canonical field. WP Title Layer subtitle and Series data use the post type's core REST schema instead of a custom Companion route. Every Companion route checks authentication and edit capability; it does not bypass Wordfence or silently switch transport.
+The optional [WP Publisher Companion](../wordpress-companion/README.md) exposes an authenticated allowlist for Rank Math SEO, legacy Secondary Title, and XML-RPC attachment metadata. Companion 0.5.0 reports `wp-title-layer`, `legacy-secondary-title`, or `none` as the subtitle provider. Irisable Title Layer uses the post type's core REST schema for its canonical subtitle and Series. Companion checks authentication and edit permissions for metadata access.
 
 ## Front Matter Integration
 
@@ -161,7 +146,7 @@ Note-controlled fields:
 * `slug`, `excerpt`, and `featuredImage`
 * `focusKeyword`, with `focus_keyword` as a read-compatible alias
 * `metaDescription`, with `meta_description` as a read-compatible alias
-* `secondaryTitle`, with `secondary_title` as a read-compatible alias
+* `subtitle`, with `secondaryTitle` and `secondary_title` as compatible aliases
 * The atomic Series group `series`, `seriesSeason`, `seriesRole`, `seriesScope`, and `seriesLabel`
 * `seriesGroup`, a separate content-group label within the selected Series/Season
 * `status` and `commentStatus`, with `comment_status` as a read-compatible alias
@@ -187,42 +172,45 @@ Current behavior:
 * An image-free `wp-media` block at the first non-empty body position supplies metadata for a `featuredImage` that is not embedded in the article; it never creates a body figcaption.
 * `caption: =alt` explicitly reuses the final Alt Text as the attachment caption and editable figcaption.
 * Attachment title remains media-library metadata; even an explicitly authored title is not prepended to the visible figcaption. Only `caption` supplies figcaption content.
+* Standalone Markdown and Obsidian MP3 embeds produce `core/audio` in Block Editor mode, with an attachment ID when known. A `wp-media` caption appears beneath the player. MP3 attachment metadata uses `title`, `caption`, and `description`.
+* Remote MP3 embeds skip uploads. Updating their media-library metadata requires an exact URL or known URL alias in the current profile's attachment cache. Unmapped remote embeds can still have a block caption.
 * Sync restores safe cached local references, keeps unmatched remote URLs valid, and offers explicit validated downloads into a configured Vault folder.
 
 ## Content Conversion And Synchronization
 
 The shared Markdown parser is configured in [src/app-state.ts](../src/app-state.ts) and [src/utils.ts](../src/utils.ts).
 
-Forward publishing uses [src/wordpress-blocks.ts](../src/wordpress-blocks.ts) to serialize common Markdown structures as native core blocks. Paragraphs, headings, lists, images, quotes, code, tables, and separators remain independently editable; Mermaid stays inert in a Code block; structures that cannot be represented safely use an explicit Custom HTML fallback.
+Forward publishing uses [src/wordpress-blocks.ts](../src/wordpress-blocks.ts) to serialize common Markdown structures as native core blocks. Paragraphs, headings, lists, images, MP3 embeds, quotes, code, tables, and separators remain independently editable. Mermaid stays inert in a Code block. Structures that cannot be represented safely use an explicit Custom HTML fallback.
 
-Reverse conversion uses [src/wordpress-block-parser.ts](../src/wordpress-block-parser.ts) and [src/wordpress-to-markdown.ts](../src/wordpress-to-markdown.ts). Supported blocks become loss-aware Markdown, while unknown or structurally lossy source is preserved in inert protected regions instead of disappearing silently.
+Reverse conversion uses [src/wordpress-block-parser.ts](../src/wordpress-block-parser.ts) and [src/wordpress-to-markdown.ts](../src/wordpress-to-markdown.ts). Supported blocks become loss-aware Markdown. Audio and other blocks that cannot be converted losslessly use inert protected source regions.
 
-The explicit synchronization workflow combines normalized remote snapshots, field-level diffs, guarded local transactions, bounded restore data, common baselines, six-state classification, and reviewed three-way merge. It supports title, body, slug, excerpt, status, comments, categories, WordPress tag names including spaces through `wpTags`, featured image, Focus Keyword, SEO Description, Secondary Title, and the complete Series placement as one atomic field without background overwrite. Obsidian `tags` and inline `#tags` remain local-only.
+The explicit synchronization workflow combines normalized remote snapshots, field-level diffs, guarded local transactions, bounded restore data, common baselines, six-state classification, and reviewed three-way merge. It supports title, body, slug, excerpt, status, comments, categories, featured image, Focus Keyword, SEO Description, subtitles, Series placement as one atomic field, and a separate Series content-group field. WordPress tag names, including spaces, use `wpTags`. For old notes without that property, publishing can read `tags` as a fallback. Inline `#tags` stay local.
 
 ## Documentation
 
 Current documentation and packaging references:
 
 * [README.md](../README.md)
+* [README.zh-CN.md](../README.zh-CN.md)
 * [docs/index.md](../docs/index.md)
 * [CHANGELOG.md](../CHANGELOG.md)
 * [Release checklist](release-checklist.md)
 * [WP Publisher Companion README](../wordpress-companion/README.md)
 
-## Post-P3 WP Title Layer Integration
+## Irisable Title Layer Integration
 
-Status: Completed; automated checks, independent QA, and NAS plus production-site manual acceptance passed on 2026-08-29.
+Version 1.1.0 shipped canonical subtitles and basic Series placement. Version 1.2.0 shipped content groups and advanced roles. [Content Group QA](qa-series-group.md) records the group workflow on the NAS. Section 22 of the [integration spec](wp-title-layer-series-integration-spec.md) records the advanced-role contract tests and their manual acceptance limits.
 
 The integration follows [the Series contract](wp-title-layer-series-integration-spec.md):
 
-* `secondaryTitle` uses canonical `wptl_subtitle` when the selected post type exposes it; legacy Companion `_secondary_title` is only a fallback on non-WPTL sites.
+* `subtitle` uses canonical `wptl_subtitle` when the selected post type exposes it. Legacy sites can use the Companion `_secondary_title` fallback.
 * `series` stores a portable existing Series slug, and `seriesSeason` stores a stable Season `public_id`; target term IDs and internal Season keys never enter front matter or sync baselines.
 * Missing `series` preserves an existing remote placement, while an explicitly empty `series` removes the taxonomy relation and all dependent public metadata.
 * Series resolution, combination validation, and taxonomy/meta preparation happen before article creation or update. Series definitions and managed ordering are never created or modified by Publisher.
 * Publish, preview, Inspector, Pull, Diff, three-way merge, write-back, and baseline treat the complete Series placement as one atomic field.
 * Content groups use `seriesGroup` / REST `meta.wptl_series_group` (WPTL rc.3 contract). Missing preserves the remote value; `""` clears it; non-string YAML values are rejected. Target schema support is checked before writing. Canonical labels returned after alias resolution are written back only if the original note property is unchanged. Groups have their own pull/merge field; internal group IDs, taxonomy, rank, and group-wide renaming are never used.
 * A successful post response is followed by authenticated readback of the public Series placement and canonical subtitle. A mismatch preserves the post ID, records a partial outcome with the expected and actual state, and does not establish a strong baseline.
-* Unreleased rc.4 integration supports advanced role writes only when the term's public `wptl_capabilities` reports `version: 1` and `book_structure: true`. Missing/unknown capability remains read-only for advanced roles. Role/scope/season controls preserve same-Series selections; whole-Series scope clears the Season and article clears scope. See integration spec section 22 and its shared request fixtures.
+* Advanced roles are writable when the term's public `wptl_capabilities` reports `version: 1` and `book_structure: true`. Role/scope/season controls preserve same-Series selections. Whole-Series scope clears the Season and article clears scope. See integration spec section 22 and its shared request fixtures.
 * Content groups are article-only: non-article UI hides the group without deleting old note data, and publishing omits the group metadata. Group-only updates consult the remote role when placement is not selected for writing.
 * Existing advanced-role placements remain readable for Inspect and Pull on older servers. XML-RPC Series and custom Series taxonomy keys remain unsupported. Coordinated multi-site publishing of a seasoned Series is stopped before any write and must be reviewed one site at a time because Season labels remain site-owned.
 
@@ -235,7 +223,7 @@ These items are not scheduled, are not P3 leftovers, and require separate priori
 * Author selection, sticky-post support, and deliberately allowlisted custom fields or post meta
 * A canonical front matter schedule field, Canonical URL, and additional SEO metadata
 * Portable category presets for profiles or templates, plus optional editorial and SEO template fields with explicit precedence rules
-* Earlier preflight checks for unresolved local media, inconsistent post types, and taxonomy failures
+* Earlier preflight checks for inconsistent post types and taxonomy failures
 * Per-publish control over local media-link replacement instead of only the global setting
 * A separately scoped Transport/AuthProvider refactor, with any SSH/WP-CLI transport requiring its own security and hosting acceptance matrix
 
@@ -255,7 +243,9 @@ These exclusions are safety boundaries, not unfinished task cards. Any future ch
 
 ## Release Acceptance
 
-Staged real-site acceptance for P3-1 through P3-7 passed on 2026-07-21, and the automated suite currently passes 234 tests with lint, TypeScript validation, and a production build. `npm run release:check` additionally verifies release identity and versions, documentation links, translation parity, command-map parity, required assets, and the companion package before a tag can produce a draft GitHub release. Companion PHP syntax remains explicitly unverified on this Mac because PHP CLI is unavailable.
+The 1.2.0 release passed 292 automated tests, lint, TypeScript validation, a production build, Companion PHP lint, and the release checks. The [MP3 acceptance record](qa-audio-embed.md) covers earlier real-site playback and media reuse. The 1.2.0 audio metadata follow-up had automated coverage at release time.
+
+`npm run check` runs lint, tests, and builds the current source. `npm run release:check` verifies release identity, versions, documentation, translations, command parity, required assets, and the Companion package. The tag workflow also lints the Companion PHP and packages a draft GitHub release.
 
 The complete Application Password REST and XML-RPC workflow matrix remains the final release-level compatibility gate. miniOrange requires a credential smoke test when included in release claims. Each supported transport should exercise fetch, inspect, push, pull, merge, metadata, media, retry, and recovery behavior.
 

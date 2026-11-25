@@ -1,15 +1,20 @@
 export interface TextReplacement {
-  original: string;
+  startIndex: number;
+  endIndex: number;
   replacement: string;
 }
 
-/** Apply successful media replacements without rebuilding the note around them. */
+/** Apply disjoint replacements ordered by their original positions. */
 export function applyTextReplacements(
   content: string,
   replacements: readonly TextReplacement[]
 ): string {
-  return replacements.reduce(
-    (updated, item) => updated.replace(item.original, item.replacement),
-    content
-  );
+  const parts: string[] = [];
+  let cursor = 0;
+  for (const edit of replacements) {
+    parts.push(content.slice(cursor, edit.startIndex), edit.replacement);
+    cursor = edit.endIndex;
+  }
+  parts.push(content.slice(cursor));
+  return parts.join('');
 }

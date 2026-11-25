@@ -14,19 +14,21 @@ WordPress protects Rank Math and legacy Secondary Title metadata from generic AP
 
 Only the two Rank Math keys, legacy `_secondary_title`, and the attachment title, alt text, caption, and description are exposed. Every post route requires WordPress authentication and an `edit_post` capability check.
 
-Version 0.5.0 distinguishes WP Title Layer from the legacy Secondary Title plugin. When WP Title Layer is active, the companion reports `subtitleProvider: wp-title-layer` and disables its legacy subtitle route; WP Publisher then uses the post type's core REST `wptl_subtitle` field as the only writable source. It does not dual-write both subtitle fields.
+Version 0.5.0 distinguishes Irisable Title Layer (formerly WP Title Layer) from the legacy Secondary Title plugin. When Title Layer is active, Companion reports `subtitleProvider: wp-title-layer` and disables its legacy subtitle route. WP Publisher uses the post type's core REST `wptl_subtitle` field.
 
-The companion does not bypass Wordfence. If Wordfence disables WordPress Application Passwords, authenticated REST requests will fail until the site owner either permits Application Passwords or explicitly configures a different supported transport in a future Publisher release.
+Companion uses the authentication configured for the WordPress site. If Wordfence disables Application Passwords, profiles using them cannot authenticate. Use a profile type that the site already supports.
 
 ## Install
 
 Companion is an optional **WordPress-side plugin**, not an Obsidian plugin. Installing or updating WP Publisher in Obsidian does not install or update Companion on your site. It is currently distributed through GitHub Releases, not the WordPress.org plugin directory.
 
+Requires WordPress 6.0 and PHP 7.4 or later.
+
 ### When you need it
 
 - Install it for Publisher's protected Rank Math focus keyword and meta description fields, legacy Secondary Title access, or attachment title/alt/caption/description updates over XML-RPC. Rank Math itself must also be active for its SEO fields.
 - Ordinary post publishing does not require it.
-- Irisable Title Layer (formerly WP Title Layer) subtitles and Series use the post type's core REST fields. Install Title Layer itself for those features; Companion is not required and does not add Series support to XML-RPC.
+- Install [Irisable Title Layer](https://wordpress.org/plugins/irisable-title-layer/) separately for canonical subtitles and Series over REST.
 
 ### Download and activate
 

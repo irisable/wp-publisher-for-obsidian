@@ -6,7 +6,9 @@ loss-aware synchronization back to Obsidian.
 
 For a concise overview, installation steps, front matter examples, privacy
 disclosures, and development commands, start with the
-[project README](../README.md). The [feature map](feature-map.md) is the
+[project README](https://github.com/irisable/wp-publisher-for-obsidian#english)
+or [Chinese guide](https://github.com/irisable/wp-publisher-for-obsidian/blob/main/README.zh-CN.md).
+The [feature map](feature-map.md) is the
 canonical implementation and acceptance reference.
 
 ## Configure A WordPress Profile
@@ -23,7 +25,7 @@ This is the recommended connection for self-hosted WordPress 5.6 or newer.
 2. Find **Application Passwords**.
 3. Create a password specifically for WP Publisher.
 4. Copy it immediately and use it with your WordPress username in the profile.
-5. Set the profile API type to **REST API with Application Password**.
+5. Set the profile API type to **REST API Authentication by application passwords**.
 
 Application Passwords are revocable and avoid storing your main WordPress
 password.
@@ -49,13 +51,11 @@ validate, or refresh that token.
 
 ## Publishing Precedence
 
-For ordinary publishing, values are resolved in this order:
-
-1. The choices reviewed in the current publish dialog.
-2. Explicit note properties.
-3. A selected publishing template.
-4. Per-profile defaults.
-5. Global plugin defaults.
+The form starts from note properties and account defaults. Selecting a template
+sets status, comment status, post type, and tags. A linked post type and explicit
+WordPress tags in the note take precedence over the template. Review the form
+before publishing. The default-options command uses note, profile, and global
+defaults without opening the form.
 
 An explicit existing target retains its linked post type. A content-only update
 sends only the body and leaves title, taxonomy, status, and editorial metadata
@@ -64,7 +64,7 @@ unchanged.
 ## Gutenberg And Classic HTML
 
 The default Block Editor mode serializes paragraphs, headings, lists, images,
-quotes, code, tables, and separators as native WordPress blocks. Mermaid stays
+standalone MP3 embeds, quotes, code, tables, and separators as native WordPress blocks. Mermaid stays
 in an inert code block. Content that cannot be represented safely is isolated
 in a Custom HTML block rather than silently changed.
 
@@ -75,18 +75,28 @@ older sites or workflows.
 
 Categories are selected in a searchable hierarchy. The note stores portable
 category slugs; WordPress IDs are resolved only for the selected profile during
-publish. Tags are normalized from note properties, templates, or profile
-defaults and are created when necessary.
+publish. Use `wpTags` for WordPress tag names, including names with spaces.
+Legacy notes without `wpTags` can use the `tags` property as a fallback. Tags
+can also come from templates or profile defaults and are created as needed.
 
 ## Media
 
-Local Markdown images and Obsidian embeds are uploaded before the post. A
+Local images and MP3 files embedded in Markdown are uploaded before the post. A
 per-profile SHA-256 cache reuses unchanged files, verifies that the WordPress
 attachment still exists, and recovers from stale attachment IDs.
 
 Featured images can be a WordPress attachment ID or a Vault image reference.
 Attachment title, Alt Text, caption, and description can be supplied through an
-adjacent `wp-media` comment as documented in the [README](../README.md).
+adjacent `wp-media` comment. Audio uses `title`, `caption`, and `description`.
+See the [image and MP3 examples](https://github.com/irisable/wp-publisher-for-obsidian#media-metadata).
+
+## Subtitles And Series
+
+[Irisable Title Layer](https://wordpress.org/plugins/irisable-title-layer/)
+provides subtitles and Series over REST. WP Publisher 1.2.0 supports content
+groups and advanced roles on supported Series. Set `subtitle`, `series`, and
+the applicable Season, role, scope, and group properties in the note, or review
+their values in the publish form. WordPress manages Series definitions and order.
 
 ## Synchronization Safety
 
@@ -98,16 +108,16 @@ Remote actions are explicit:
 - **Resolve WordPress sync conflict** performs a reviewed three-way merge.
 - **Undo last WordPress pull** restores the guarded pre-pull note revision.
 
-Unknown Gutenberg blocks and structurally lossy HTML are stored in protected
-source regions. Damaged protected regions are rejected during a later publish
-instead of being dropped.
+Audio, unknown Gutenberg blocks, and structurally lossy HTML are stored in
+protected source regions. A later publish rejects damaged regions.
 
 ## Companion Plugin
 
-The optional [WP Publisher Companion](../wordpress-companion/README.md) exposes
-a strict authenticated allowlist for Rank Math, Secondary Title, and XML-RPC
-attachment metadata. Upload its ZIP through **Plugins > Add New > Upload
-Plugin** in WordPress.
+The optional [WP Publisher Companion](https://github.com/irisable/wp-publisher-for-obsidian/tree/main/wordpress-companion)
+allows authenticated access to protected Rank Math and legacy Secondary Title
+fields, as well as attachment metadata over XML-RPC. Download its separate
+[Companion ZIP](https://github.com/irisable/wp-publisher-for-obsidian/releases/latest/download/wp-publisher-companion.zip)
+and install it through **Plugins > Add New > Upload Plugin** in WordPress.
 
 ## Troubleshooting
 
@@ -117,10 +127,12 @@ Confirm that the folder contains the matching `main.js`, `manifest.json`, and
 `styles.css`, then reload Obsidian. Disable the legacy `obsidian-wordpress`
 plugin as well so duplicate commands cannot target the wrong publishing setup.
 
-### Rank Math or Secondary Title fields are unavailable
+### Rank Math or legacy Secondary Title fields are unavailable
 
 Install and activate WP Publisher Companion, then reopen or validate the
-profile. The corresponding WordPress plugin must also be active.
+profile. The corresponding WordPress plugin must also be active. For Irisable
+Title Layer subtitles or Series, check the REST profile and the post type's
+capabilities.
 
 ### A cached image returns 404
 

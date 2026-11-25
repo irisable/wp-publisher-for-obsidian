@@ -12,7 +12,8 @@ Before
 After`;
 
   const updated = applyTextReplacements(note, [ {
-    original: '![[local.png]]',
+    startIndex: note.indexOf('![[local.png]]'),
+    endIndex: note.indexOf('![[local.png]]') + '![[local.png]]'.length,
     replacement: '![[https://example.com/uploaded.png]]'
   } ]);
 

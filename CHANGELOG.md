@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.1] - 2026-11-25
+
+### Fixed
+
+* Stopped post submission when a Markdown image or MP3 cannot be resolved or
+  uploaded. Successful uploads remain reusable. Attachment metadata errors
+  still produce warnings when the attachment URL is usable.
+* Preserved Markdown examples and front matter when rewriting uploaded media
+  references in the note.
+* Kept image URLs with MP3 text in a query or fragment as images.
+* Generated release checksums using the downloaded asset names and flagged
+  release candidate tags as GitHub prereleases.
+* Removed compatibility entries inherited from upstream for versions with no
+  release in this repository.
+
+### Documentation
+
+* Updated the bilingual guides and feature map for 1.2.0, native MP3 embeds,
+  and Irisable Title Layer. CI checks that both copies of the Chinese guide match.
+
 ## [1.2.0] - 2026-11-11
 
 Stable release paired with WP Title Layer 1.0.0. Includes the Series groups

@@ -1,4 +1,4 @@
-import { Notice, TFile } from 'obsidian';
+import { getFrontMatterInfo, Notice, TFile } from 'obsidian';
 import WordpressPlugin from './main';
 import {
   WordPressAuthParams,
@@ -41,7 +41,7 @@ import {
   EditorialMetadataCapabilities,
   parseFeaturedImageReference
 } from './editorial-metadata';
-import { renderWordPressPostContent } from './wordpress-blocks';
+import { getPublishMediaReferences, renderWordPressPostContent } from './wordpress-blocks';
 import { isMp3Source } from './audio-embed';
 import {
   findCachedMedia,
@@ -57,8 +57,8 @@ import {
 import {
   buildUploadedImageReference,
   extractMediaMetadataBlocks,
-  getMarkdownImages,
   imageCaptionsFromMetadata,
+  isRemoteMediaSource,
   mediaMetadataNeedsUpdate,
   resolveImageCaptionMetadata,
   resolveMediaMetadata,
@@ -495,12 +495,16 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       );
       return false;
     }
-    const result = await this.updateMediaMetadata(attachmentId, metadata, auth);
-    if (result.code === WordPressClientReturnCode.Error) {
+    try {
+      const result = await this.updateMediaMetadata(attachmentId, metadata, auth);
+      if (result.code === WordPressClientReturnCode.OK) {
+        return true;
+      }
       this.showMediaMetadataWarning(fileName, result.error.message);
-      return false;
+    } catch (error) {
+      this.showMediaMetadataWarning(fileName, error instanceof Error ? error.message : String(error));
     }
-    return true;
+    return false;
   }
 
   private async uploadVaultMedia(
@@ -517,6 +521,9 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       contentHash,
       requireAttachmentId
     );
+    if (cached && !isUploadedMediaUrl(cached.url)) {
+      cached = undefined;
+    }
     if (cached?.id !== undefined && cached.id !== ''
       && !this.checkedMediaHashes.has(contentHash)
     ) {
@@ -567,7 +574,16 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       content,
       metadata
     }, auth);
-    if (result.code === WordPressClientReturnCode.OK && result.data.url) {
+    if (result.code === WordPressClientReturnCode.OK) {
+      if (!isUploadedMediaUrl(result.data.url)) {
+        return {
+          code: WordPressClientReturnCode.Error,
+          error: {
+            code: WordPressClientReturnCode.ServerInternalError,
+            message: this.plugin.i18n.t('error_mediaUploadMissingUrl')
+          }
+        };
+      }
       let metadataApplied = result.data.metadataApplied === true;
       if (!metadataApplied && mediaMetadataNeedsUpdate(undefined, metadata)) {
         metadataApplied = await this.applyMediaMetadata(
@@ -949,23 +965,32 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         postParams.tags = tagTerms.map(term => term.id);
       }
     }
-    const mediaRenderOptions = updatesBody
+    const bodyMedia = updatesBody
       ? await this.updatePostImages({
         auth,
         postParams,
-        sourceFile: execution.sourceFile,
-        replaceMediaLinks: execution.replaceMediaLinks,
-        syncContext
+        sourceFile: execution.sourceFile
       })
-      : {};
-    const html = updatesBody
+      : undefined;
+    const html = bodyMedia
       ? renderWordPressPostContent(
         postParams.content,
         AppState.markdownParser,
         this.plugin.settings.contentFormat,
-        mediaRenderOptions
+        {
+          imageCaptions: bodyMedia.imageCaptions,
+          mediaAttachmentIds: bodyMedia.mediaAttachmentIds,
+          validateMediaSource: source => {
+            if (!isRemoteMediaSource(source)) {
+              throw new Error(this.plugin.i18n.t('error_bodyMediaUnresolved', { source }));
+            }
+          }
+        }
       )
       : '';
+    if (execution.replaceMediaLinks && bodyMedia?.replacements.size) {
+      this.replaceNoteMediaLinks(execution.sourceFile, bodyMedia.replacements, syncContext);
+    }
     const result = await this.publish(
       postParams.title ?? 'A post from Obsidian!',
       html,
@@ -1045,12 +1070,11 @@ export abstract class AbstractWordPressClient implements WordPressClient {
   private async updatePostImages(params: {
     postParams: WordPressPostParams,
     auth: WordPressAuthParams,
-    sourceFile: TFile,
-    replaceMediaLinks: boolean,
-    syncContext: PublishSyncContext;
+    sourceFile: TFile;
   }): Promise<{
     imageCaptions: Record<string, ImageCaptionMetadata>;
     mediaAttachmentIds: Record<string, string | number>;
+    replacements: Map<string, string>;
   }> {
     const { postParams, auth, sourceFile } = params;
     const imageCaptions = imageCaptionsFromMetadata(postParams.mediaMetadata);
@@ -1058,9 +1082,12 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     for (const cached of Object.values(this.profile.mediaCache ?? {})) {
       if (cached.id !== undefined) mediaAttachmentIds[cached.url] = cached.id;
     }
-    const replacements: TextReplacement[] = [];
+    const replacements = new Map<string, string>();
+    const outboundReplacements: TextReplacement[] = [];
 
-    const images = getMarkdownImages(postParams.content);
+    const images = getPublishMediaReferences(
+      postParams.content, AppState.markdownParser, this.plugin.settings.contentFormat
+    );
     for (const img of images) {
       if (img.srcIsUrl) {
         if (isMp3Source(img.src)) {
@@ -1094,18 +1121,14 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       try {
         sourcePath = decodeURI(sourcePath);
       } catch {
-        // Keep the original path so WordPress can report a useful upload error.
-      }
-      const fileName = sourcePath.split('/').pop();
-      if (fileName === undefined) {
-        continue;
+        // Vault paths can contain literal percent signs.
       }
       const imgFile = this.plugin.app.metadataCache.getFirstLinkpathDest(
         sourcePath,
         sourceFile.path
       );
       if (!(imgFile instanceof TFile)) {
-        continue;
+        throw new Error(this.plugin.i18n.t('error_bodyMediaNotFound', { path: sourcePath }));
       }
 
       const content = await this.plugin.app.vault.readBinary(imgFile);
@@ -1154,35 +1177,54 @@ export abstract class AbstractWordPressClient implements WordPressClient {
           metadata,
           true
         );
-        postParams.content = postParams.content.replace(img.original, replacement);
-        replacements.push({ original: img.original, replacement: noteReplacement });
-      } else if (result.error.code === WordPressClientReturnCode.ServerInternalError) {
-        this.publishWarnings.add(result.error.message);
+        outboundReplacements.push({
+          startIndex: img.startIndex,
+          endIndex: img.endIndex,
+          replacement
+        });
+        replacements.set(img.original, noteReplacement);
       } else {
-        this.publishWarnings.add(this.plugin.i18n.t('error_mediaUploadFailed', {
+        throw new Error(this.plugin.i18n.t('error_mediaUploadFailed', {
           name: imgFile.name,
+          message: result.error.message
         }));
       }
     }
 
+    postParams.content = applyTextReplacements(postParams.content, outboundReplacements);
+    return { imageCaptions, mediaAttachmentIds, replacements };
+  }
+
+  private replaceNoteMediaLinks(
+    sourceFile: TFile,
+    replacements: ReadonlyMap<string, string>,
+    syncContext: PublishSyncContext
+  ): void {
     const activeFile = this.plugin.app.workspace.getActiveFile();
     const { activeEditor } = this.plugin.app.workspace;
-    if (params.replaceMediaLinks
-      && replacements.length > 0
-      && activeFile?.path === sourceFile.path
-      && activeEditor?.editor
-    ) {
+    if (activeFile?.path === sourceFile.path && activeEditor?.editor) {
+      const rewrite = (body: string): string => applyTextReplacements(
+        body,
+        getPublishMediaReferences(body, AppState.markdownParser, this.plugin.settings.contentFormat)
+          .flatMap(ref => {
+            const replacement = replacements.get(ref.original);
+            return replacement === undefined ? [] : [ {
+              startIndex: ref.startIndex,
+              endIndex: ref.endIndex,
+              replacement
+            } ];
+          })
+      );
       const currentContent = activeEditor.editor.getValue();
-      const updatedContent = applyTextReplacements(currentContent, replacements);
+      const { contentStart } = getFrontMatterInfo(currentContent);
+      const currentBody = currentContent.slice(contentStart);
+      if (currentBody.trim() !== syncContext.localContent.trim()) return;
+      const updatedContent = currentContent.slice(0, contentStart) + rewrite(currentBody);
       if (updatedContent !== currentContent) {
         activeEditor.editor.setValue(updatedContent);
-        params.syncContext.localContent = applyTextReplacements(
-          params.syncContext.localContent,
-          replacements
-        );
+        syncContext.localContent = rewrite(syncContext.localContent);
       }
     }
-    return { imageCaptions, mediaAttachmentIds };
   }
 
   async fetchPost(
@@ -1509,4 +1551,14 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     return postParams;
   }
 
+}
+
+function isUploadedMediaUrl(value: string): boolean {
+  if (!/^(?:https?:)?\/\//i.test(value)) return false;
+  try {
+    const url = new URL(value.startsWith('//') ? 'https:' + value : value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
 }

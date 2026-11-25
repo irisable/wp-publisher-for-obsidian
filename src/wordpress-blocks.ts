@@ -1,7 +1,9 @@
 import type MarkdownIt from 'markdown-it';
 import type Token from 'markdown-it/lib/token.mjs';
 import { audioEmbedHtml, isMp3Source } from './audio-embed';
+import { applyTextReplacements } from './content-replacements';
 import { legacyImageParagraphSource } from './legacy-image-syntax';
+import { buildUploadedImageReference, getMarkdownImages, type MarkdownImageReference } from './media-metadata';
 import { splitProtectedWordPressSources } from './wordpress-block-parser';
 
 export const WordPressContentFormat = {
@@ -19,6 +21,7 @@ export interface WordPressImageCaption {
 export interface WordPressRenderOptions {
   imageCaptions?: Readonly<Record<string, WordPressImageCaption>>;
   mediaAttachmentIds?: Readonly<Record<string, string | number>>;
+  validateMediaSource?: (source: string) => void;
 }
 
 interface RenderContext {
@@ -406,8 +409,65 @@ function renderMarkdownSegmentToWordPressBlocks(
 ): string {
   const env: Record<string, unknown> = {};
   const tokens = parser.parse(markdown, env);
+  if (options.validateMediaSource) {
+    for (const source of markdownMediaSources(tokens)) options.validateMediaSource(source);
+  }
   const context: RenderContext = { markdown: parser, tokens, env, options };
   return renderBlocksAtLevel(context, 0, tokens.length, 0).join('\n\n');
+}
+
+export function getPublishMediaReferences(
+  markdown: string,
+  parser: MarkdownIt,
+  format: WordPressContentFormat
+): MarkdownImageReference[] {
+  const references = getMarkdownImages(markdown);
+  if (references.length === 0) return references;
+
+  // Probe each occurrence with a distinct source so literal examples cannot
+  // be mistaken for an embed with the same filename.
+  let prefix = 'wp-publisher-media-check/';
+  while (markdown.includes(prefix)) prefix = '_' + prefix;
+  const probe = applyTextReplacements(markdown, references.map((ref, index) => ({
+    startIndex: ref.startIndex,
+    endIndex: ref.endIndex,
+    replacement: buildUploadedImageReference(ref, prefix + index, {}, true)
+  })));
+  const sources = getRenderedMarkdownMediaSources(probe, parser, format);
+  return references.filter((_ref, index) => sources.has(prefix + index));
+}
+
+function getRenderedMarkdownMediaSources(
+  markdown: string,
+  parser: MarkdownIt,
+  format: WordPressContentFormat
+): Set<string> {
+  if (format !== WordPressContentFormat.ClassicHtml && isSerializedWordPressPost(markdown)) {
+    return new Set();
+  }
+  let segments = [ markdown ];
+  if (format !== WordPressContentFormat.ClassicHtml) {
+    const protectedSources = splitProtectedWordPressSources(markdown);
+    if (protectedSources.errors.length > 0) {
+      throw new Error(protectedSources.errors.join(' '));
+    }
+    segments = protectedSources.segments
+      .filter(segment => segment.kind === 'markdown')
+      .map(segment => segment.content);
+  }
+  const sources = new Set<string>();
+  for (const segment of segments) {
+    for (const source of markdownMediaSources(parser.parse(segment, {}))) sources.add(source);
+  }
+  return sources;
+}
+
+function* markdownMediaSources(tokens: readonly Token[]): Generator<string> {
+  for (const token of tokens) {
+    for (const child of token.children ?? []) {
+      if (IMAGE_TYPES.has(child.type)) yield child.attrGet('src') ?? '';
+    }
+  }
 }
 
 export function renderMarkdownToWordPressBlocks(
@@ -437,7 +497,12 @@ export function renderWordPressPostContent(
   format: WordPressContentFormat,
   options: WordPressRenderOptions = {}
 ): string {
-  return format === WordPressContentFormat.ClassicHtml
-    ? parser.render(markdown)
-    : renderMarkdownToWordPressBlocks(markdown, parser, options);
+  if (format !== WordPressContentFormat.ClassicHtml) {
+    return renderMarkdownToWordPressBlocks(markdown, parser, options);
+  }
+  if (!options.validateMediaSource) return parser.render(markdown);
+  const env: Record<string, unknown> = {};
+  const tokens = parser.parse(markdown, env);
+  for (const source of markdownMediaSources(tokens)) options.validateMediaSource(source);
+  return parser.renderer.render(tokens, parser.options, env);
 }

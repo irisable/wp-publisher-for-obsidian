@@ -89,7 +89,9 @@ function checkVersions() {
     );
   }
 
-  const tag = process.env.GITHUB_REF_NAME || process.argv[2];
+  const tag = process.argv[2] || (process.env.GITHUB_REF_TYPE === 'tag'
+    ? process.env.GITHUB_REF_NAME
+    : undefined);
   if (tag && tag !== manifest.version) {
     errors.push(`release tag ${tag} must exactly match ${manifest.version}`);
   }
@@ -335,6 +337,15 @@ function checkMarkdownLinks() {
   }
 }
 
+function checkBilingualReadme() {
+  const englishLink = /^\[English\]\([^)]+\) \| \*\*[^\n]+\*\*$/m;
+  const chineseBody = path => read(path).split(englishLink)[1]?.trim();
+  const embedded = chineseBody('README.md');
+  if (!embedded || embedded !== chineseBody('README.zh-CN.md')) {
+    errors.push('The Chinese section of README.md must match README.zh-CN.md after the language link');
+  }
+}
+
 function checkCompanion() {
   const manifest = readJson('manifest.json');
   const phpPath =
@@ -393,6 +404,7 @@ checkReleaseFiles();
 checkTranslations();
 checkCommandMap();
 checkMarkdownLinks();
+checkBilingualReadme();
 checkCompanion();
 
 for (const warning of warnings) {

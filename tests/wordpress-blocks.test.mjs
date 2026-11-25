@@ -56,6 +56,17 @@ test('remote MP3 without mapped ID remains audio and ordinary images remain imag
   assert.doesNotMatch(mixed, /<img/);
 });
 
+test('MP3 text in an image URL query or fragment does not change its block type', () => {
+  const parser = createParser().use(MarkdownItImagePluginInstance.plugin);
+  const output = renderMarkdownToWordPressBlocks(
+    '![](https://example.com/cover.jpg?name=voice.mp3)\n\n![[https://example.com/cover.jpg?name=cover&v=2#voice.mp3]]',
+    parser
+  );
+  assert.equal(output.match(/<!-- wp:image -->/g)?.length, 2);
+  assert.match(output, /cover\.jpg\?name=cover&amp;v=2#voice\.mp3/);
+  assert.doesNotMatch(output, /<audio/);
+});
+
 test('MP3 wp-media emits only explicit caption as escaped audio figcaption', () => {
   const parser = createParser().use(MarkdownItImagePluginInstance.plugin);
   for (const embed of ['![](https://example.com/voice.mp3)', '![[https://example.com/voice.mp3]]']) {

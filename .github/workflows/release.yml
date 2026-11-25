@@ -39,6 +39,7 @@ jobs:
         run: |
           plugin_id="$(node -p "require('./manifest.json').id")"
           mkdir -p release
+          cp main.js manifest.json styles.css release/
           zip -j "release/${plugin_id}-${GITHUB_REF_NAME}.zip" \
             main.js manifest.json styles.css
           (
@@ -46,13 +47,12 @@ jobs:
             zip -r "../release/wp-publisher-companion.zip" \
               wp-publisher-companion
           )
-          sha256sum \
-            main.js \
-            manifest.json \
-            styles.css \
-            "release/${plugin_id}-${GITHUB_REF_NAME}.zip" \
-            release/wp-publisher-companion.zip \
-            > release/SHA256SUMS.txt
+          (
+            cd release
+            sha256sum main.js manifest.json styles.css \
+              "${plugin_id}-${GITHUB_REF_NAME}.zip" wp-publisher-companion.zip \
+              > SHA256SUMS.txt
+          )
 
       - name: Create draft GitHub release
         env:
@@ -60,13 +60,16 @@ jobs:
         shell: bash
         run: |
           plugin_id="$(node -p "require('./manifest.json').id")"
+          flags=(--draft --generate-notes)
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            flags+=(--prerelease)
+          fi
           gh release create "$GITHUB_REF_NAME" \
-            main.js \
-            manifest.json \
-            styles.css \
+            release/main.js \
+            release/manifest.json \
+            release/styles.css \
             "release/${plugin_id}-${GITHUB_REF_NAME}.zip" \
             release/wp-publisher-companion.zip \
             release/SHA256SUMS.txt \
-            --draft \
-            --generate-notes \
+            "${flags[@]}" \
             --title "$GITHUB_REF_NAME"

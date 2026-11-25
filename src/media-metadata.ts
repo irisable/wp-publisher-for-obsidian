@@ -367,7 +367,7 @@ export function buildWpComMediaMetadata(
   };
 }
 
-function isRemoteMediaSource(src: string): boolean {
+export function isRemoteMediaSource(src: string): boolean {
   return /^(?:https?:)?\/\//i.test(src) || /^(?:data|blob):/i.test(src);
 }
 
